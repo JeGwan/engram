@@ -1,0 +1,22 @@
+{
+  "name": "@engram/core",
+  "version": "1.0.0",
+  "description": "Pure library — DB schema, indexer, embeddings, graph logic (zero runtime deps)",
+  "type": "module",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf build"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

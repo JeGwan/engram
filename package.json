@@ -1,0 +1,22 @@
+{
+  "name": "engram",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-text search, semantic search, and knowledge graph for Obsidian vaults",
+  "workspaces": [
+    "packages/core",
+    "packages/web",
+    "packages/mcp",
+    "packages/obsidian"
+  ],
+  "scripts": {
+    "build": "npm run build -w @engram/core && npm run build -w @engram/web && npm run build -w @engram/mcp && npm run build -w @engram/obsidian",
+    "build:core": "npm run build -w @engram/core",
+    "build:web": "npm run build -w @engram/web",
+    "build:mcp": "npm run build -w @engram/mcp",
+    "build:obsidian": "npm run build -w @engram/obsidian",
+    "clean": "rm -rf packages/*/build packages/obsidian/main.js",
+    "deploy:obsidian": "node scripts/deploy-obsidian.mjs"
+  },
+  "license": "ISC"
+}

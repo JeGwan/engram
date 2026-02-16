@@ -1,0 +1,25 @@
+{
+  "name": "@engram/web",
+  "version": "1.0.0",
+  "description": "Web visualization dashboard for Engram",
+  "type": "module",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/index.d.ts",
+      "import": "./build/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf build"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@engram/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

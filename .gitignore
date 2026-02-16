@@ -1,0 +1,7 @@
+node_modules/
+build/
+data/
+*.log
+.DS_Store
+packages/obsidian/main.js
+packages/obsidian/sql-wasm.wasm

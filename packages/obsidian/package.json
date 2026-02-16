@@ -1,0 +1,25 @@
+{
+  "name": "@engram/obsidian",
+  "version": "1.0.0",
+  "description": "Obsidian plugin — full-text search, semantic search, knowledge graph",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@engram/core": "*",
+    "sql.js-fts5": "^1.4.0",
+    "vis-data": "^7.1.9",
+    "vis-network": "^9.1.9"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/sql.js": "^1.4.9",
+    "builtin-modules": "^4.0.0",
+    "esbuild": "^0.24.0",
+    "obsidian": "^1.7.2",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engram — Vault Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: '#09090b',
+            card: '#131316',
+            border: '#1e1e24',
+            accent: '#3b82f6',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background: #09090b; color: #a1a1aa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .tab-btn.active { background: #3b82f6; color: white; }
+    .tab-btn:not(.active):hover { background: #1e1e24; }
+    #graph-container { width: 100%; height: 100%; }
+    mark { background: #ca8a04; color: #09090b; padding: 0 2px; border-radius: 2px; }
+    .stat-card { transition: transform 0.15s; }
+    .stat-card:hover { transform: translateY(-2px); }
+    table th { position: sticky; top: 0; background: #131316; z-index: 1; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #09090b; }
+    ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    /* Command palette */
+    .cmd-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 50; display: flex; justify-content: center; padding-top: 20vh; }
+    .cmd-box { width: 420px; max-height: 340px; background: #131316; border: 1px solid #27272a; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); overflow: hidden; display: flex; flex-direction: column; }
+    .cmd-input { background: transparent; border: none; border-bottom: 1px solid #1e1e24; padding: 14px 16px; font-size: 15px; color: #e4e4e7; outline: none; width: 100%; }
+    .cmd-input::placeholder { color: #52525b; }
+    .cmd-list { overflow-y: auto; padding: 6px; }
+    .cmd-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: #a1a1aa; }
+    .cmd-item.active { background: #3b82f6; color: white; }
+    .cmd-item:not(.active):hover { background: #1e1e24; }
+    .cmd-item .cmd-icon { width: 20px; text-align: center; font-size: 14px; }
+    .cmd-item .cmd-key { margin-left: auto; font-size: 10px; color: #52525b; background: #1e1e24; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+    .cmd-item.active .cmd-key { color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); }
+  </style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+  <!-- Command Palette -->
+  <div id="cmd-palette" class="cmd-overlay hidden">
+    <div class="cmd-box">
+      <input id="cmd-input" class="cmd-input" placeholder="Go to..." autocomplete="off" spellcheck="false">
+      <div id="cmd-list" class="cmd-list"></div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <nav class="w-48 bg-card border-r border-border flex flex-col shrink-0">
+    <div class="p-4 border-b border-border">
+      <h1 class="text-lg font-bold text-accent">Engram</h1>
+      <p class="text-xs text-zinc-500 mt-1">Vault Explorer</p>
+    </div>
+    <div class="flex flex-col gap-1 p-2">
+      <button class="tab-btn active text-left px-3 py-2 rounded text-sm flex items-center gap-2" data-tab="dashboard"><span class="w-5 text-center">◫</span>Dashboard</button>
+      <p class="text-[10px] text-zinc-600 uppercase tracking-wider px-3 pt-3 pb-1">Search</p>
+      <button class="tab-btn text-left px-3 py-2 rounded text-sm flex items-center gap-2" data-tab="keyword"><span class="w-5 text-center">⌕</span>Keyword</button>
+      <button class="tab-btn text-left px-3 py-2 rounded text-sm flex items-center gap-2" data-tab="semantic"><span class="w-5 text-center">◉</span>Semantic</button>
+      <p class="text-[10px] text-zinc-600 uppercase tracking-wider px-3 pt-3 pb-1">Explore</p>
+      <button class="tab-btn text-left px-3 py-2 rounded text-sm flex items-center gap-2" data-tab="graph"><span class="w-5 text-center">⬡</span>Graph</button>
+      <button class="tab-btn text-left px-3 py-2 rounded text-sm flex items-center gap-2" data-tab="db-explorer"><span class="w-5 text-center">⊞</span>DB Explorer</button>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="flex-1 overflow-hidden flex flex-col">
+
+    <!-- Dashboard Tab -->
+    <div id="tab-dashboard" class="tab-content flex-1 overflow-auto p-6">
+      <h2 class="text-xl font-semibold mb-4">Dashboard</h2>
+      <div id="stats-cards" class="grid grid-cols-5 gap-4 mb-6"></div>
+      <div class="grid grid-cols-2 gap-6">
+        <div class="bg-card rounded-lg p-4 border border-border">
+          <h3 class="text-sm font-semibold text-zinc-400 mb-3">Directory Distribution</h3>
+          <div id="dir-bars"></div>
+        </div>
+        <div class="bg-card rounded-lg p-4 border border-border">
+          <h3 class="text-sm font-semibold text-zinc-400 mb-3">Entity Types</h3>
+          <div id="entity-bars"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyword Search Tab -->
+    <div id="tab-keyword" class="tab-content flex-1 overflow-auto p-6 hidden">
+      <h2 class="text-xl font-semibold mb-1">Keyword Search</h2>
+      <p class="text-xs text-zinc-500 mb-4">FTS5 full-text search with reverse indexing</p>
+      <div class="flex gap-3 mb-4">
+        <input id="kw-input" type="text" placeholder="Search keywords..."
+          class="flex-1 bg-card border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent">
+        <select id="kw-dir" class="bg-card border border-border rounded px-3 py-2 text-sm">
+          <option value="">All directories</option>
+        </select>
+        <button id="kw-btn" class="bg-accent text-white px-4 py-2 rounded text-sm hover:bg-blue-600">Search</button>
+      </div>
+      <div id="kw-results"></div>
+    </div>
+
+    <!-- Semantic Search Tab -->
+    <div id="tab-semantic" class="tab-content flex-1 overflow-auto p-6 hidden">
+      <h2 class="text-xl font-semibold mb-1">Semantic Search</h2>
+      <p class="text-xs text-zinc-500 mb-4">Cosine similarity over bge-m3 embeddings (Ollama)</p>
+      <div class="flex gap-3 mb-4">
+        <input id="sem-input" type="text" placeholder="Describe what you're looking for..."
+          class="flex-1 bg-card border border-border rounded px-3 py-2 text-sm focus:outline-none focus:border-accent">
+        <button id="sem-btn" class="bg-emerald-600 text-white px-4 py-2 rounded text-sm hover:bg-emerald-500">Search</button>
+      </div>
+      <div id="sem-results"></div>
+    </div>
+
+    <!-- Graph Tab -->
+    <div id="tab-graph" class="tab-content flex-1 overflow-hidden hidden">
+      <div class="flex h-full">
+        <div class="flex-1 relative">
+          <div class="absolute top-3 left-3 right-3 z-10 flex gap-2">
+            <select id="graph-type-filter" class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs">
+              <option value="">All types</option>
+            </select>
+            <select id="graph-rel-filter" class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs">
+              <option value="">All relationships</option>
+            </select>
+            <input id="graph-search" type="text" placeholder="Search entity..."
+              class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs flex-1">
+          </div>
+          <div id="graph-container"></div>
+        </div>
+        <div id="graph-detail" class="w-72 bg-card border-l border-border overflow-auto p-4 hidden">
+          <div id="graph-detail-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DB Explorer Tab -->
+    <div id="tab-db-explorer" class="tab-content flex-1 overflow-hidden hidden">
+      <div class="flex h-full">
+        <div class="w-52 bg-card border-r border-border overflow-auto p-3 shrink-0">
+          <h3 class="text-sm font-semibold text-zinc-400 mb-2">Tables</h3>
+          <div id="table-list"></div>
+        </div>
+        <div class="flex-1 overflow-auto p-4">
+          <div id="table-content">
+            <p class="text-zinc-500 text-sm">Select a table from the sidebar.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    // ─── Tab navigation ──────────────────────────────────────
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    let currentTab = 'dashboard';
+    const tabInits = {};
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        currentTab = tab;
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        tabContents.forEach(c => c.classList.add('hidden'));
+        document.getElementById('tab-' + tab).classList.remove('hidden');
+        if (!tabInits[tab]) {
+          tabInits[tab] = true;
+          if (tab === 'graph') initGraph();
+          if (tab === 'db-explorer') loadTables();
+        }
+        // Auto-focus search inputs
+        const focusMap = { keyword: 'kw-input', semantic: 'sem-input', graph: 'graph-search' };
+        if (focusMap[tab]) requestAnimationFrame(() => document.getElementById(focusMap[tab])?.focus());
+        // Replay dashboard animations on re-entry
+        if (tab === 'dashboard') animateDashboard();
+      });
+    });
+
+    async function api(path) {
+      const res = await fetch(path);
+      return res.json();
+    }
+
+    // ─── Dashboard ────────────────────────────────────────────
+    async function loadDashboard() {
+      const data = await api('/api/stats');
+      const cards = [
+        { label: 'Files', value: data.files },
+        { label: 'Embeddings', value: data.embeddings },
+        { label: 'Entities', value: data.entities },
+        { label: 'Relationships', value: data.relationships },
+        { label: 'Facts', value: data.facts },
+      ];
+      dashboardData = { cards, directories: data.directories, entityTypes: data.entityTypes, entColors: { person: 'bg-blue-500', organization: 'bg-green-500', project: 'bg-orange-500', team: 'bg-purple-500', topic: 'bg-yellow-500', event: 'bg-pink-500' } };
+      animateDashboard();
+    }
+
+    let dashboardData = null;
+
+    function animateCount(el, target, duration = 600) {
+      const start = performance.now();
+      const fmt = (n) => Math.round(n).toLocaleString();
+      el.textContent = '0';
+      function tick(now) {
+        const t = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        el.textContent = fmt(target * ease);
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    function animateDashboard() {
+      if (!dashboardData) return;
+      const { cards, directories, entityTypes, entColors } = dashboardData;
+
+      // Stat cards — render with 0 then animate up
+      document.getElementById('stats-cards').innerHTML = cards.map((c, i) => `
+        <div class="stat-card bg-card border border-border rounded-lg p-4">
+          <div class="text-4xl font-bold text-zinc-100" data-counter="${i}">0</div>
+          <div class="text-xs text-zinc-500 mt-2">${c.label}</div>
+        </div>
+      `).join('');
+      cards.forEach((c, i) => {
+        const el = document.querySelector(`[data-counter="${i}"]`);
+        if (el) setTimeout(() => animateCount(el, c.value, 700), i * 80);
+      });
+
+      // Directory bars — start at width 0, animate in
+      const maxDir = Math.max(...directories.map(d => d.count), 1);
+      document.getElementById('dir-bars').innerHTML = directories.slice(0, 15).map((d, i) => `
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="text-xs text-zinc-500 w-28 truncate shrink-0">${d.name || '(root)'}</span>
+          <div class="flex-1 bg-zinc-800 rounded h-4 overflow-hidden">
+            <div class="bg-blue-500 h-full rounded transition-all duration-700 ease-out" data-bar-dir="${i}" style="width:0%"></div>
+          </div>
+          <span class="text-xs text-zinc-500 w-8 text-right">${d.count}</span>
+        </div>
+      `).join('');
+      requestAnimationFrame(() => {
+        directories.slice(0, 15).forEach((d, i) => {
+          const bar = document.querySelector(`[data-bar-dir="${i}"]`);
+          if (bar) setTimeout(() => { bar.style.width = `${(d.count / maxDir * 100).toFixed(1)}%`; }, i * 40);
+        });
+      });
+
+      // Entity bars — same staggered animation
+      const maxEnt = Math.max(...(entityTypes.map(e => e.count) || [1]), 1);
+      document.getElementById('entity-bars').innerHTML = (entityTypes || []).map((e, i) => `
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="text-xs text-zinc-500 w-28 truncate shrink-0">${e.type}</span>
+          <div class="flex-1 bg-zinc-800 rounded h-4 overflow-hidden">
+            <div class="${entColors[e.type] || 'bg-zinc-600'} h-full rounded transition-all duration-700 ease-out" data-bar-ent="${i}" style="width:0%"></div>
+          </div>
+          <span class="text-xs text-zinc-500 w-8 text-right">${e.count}</span>
+        </div>
+      `).join('');
+      requestAnimationFrame(() => {
+        (entityTypes || []).forEach((e, i) => {
+          const bar = document.querySelector(`[data-bar-ent="${i}"]`);
+          if (bar) setTimeout(() => { bar.style.width = `${(e.count / maxEnt * 100).toFixed(1)}%`; }, i * 40);
+        });
+      });
+    }
+
+    loadDashboard();
+
+    // ─── Keyword Search ────────────────────────────────────────
+    const kwInput = document.getElementById('kw-input');
+    const kwDir = document.getElementById('kw-dir');
+    const kwBtn = document.getElementById('kw-btn');
+    const kwResults = document.getElementById('kw-results');
+
+    // Populate directory filter from stats
+    api('/api/stats').then(data => {
+      (data.directories || []).forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.name;
+        opt.textContent = `${d.name} (${d.count})`;
+        kwDir.appendChild(opt);
+      });
+    });
+
+    async function doKeywordSearch() {
+      const q = kwInput.value.trim();
+      if (!q) return;
+      kwResults.innerHTML = '<p class="text-zinc-500 text-sm">Searching...</p>';
+      const dir = kwDir.value;
+      let endpoint = `/api/search?q=${encodeURIComponent(q)}`;
+      if (dir) endpoint += `&directory=${encodeURIComponent(dir)}`;
+      const data = await api(endpoint);
+
+      if (data.error) { kwResults.innerHTML = `<div class="bg-red-500/20 text-red-400 rounded p-3 text-sm">${data.error}</div>`; return; }
+      if (!data.results.length) { kwResults.innerHTML = '<p class="text-zinc-500 text-sm">No results found.</p>'; return; }
+
+      kwResults.innerHTML = data.results.map(r => `
+        <div class="bg-card border border-border rounded-lg p-4 mb-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <div class="font-medium text-sm">${esc(r.title || r.path)}</div>
+              <div class="text-xs text-zinc-500 mt-0.5">${esc(r.path)}${r.directory ? ` · <span class="text-blue-400">${esc(r.directory)}</span>` : ''}</div>
+            </div>
+          </div>
+          ${r.snippet ? `<div class="text-sm text-zinc-400 mt-2 leading-relaxed">${r.snippet}</div>` : ''}
+          ${r.tags ? `<div class="text-xs text-zinc-600 mt-1">${esc(r.tags)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    kwBtn.addEventListener('click', doKeywordSearch);
+    kwInput.addEventListener('keydown', e => { if (e.key === 'Enter') doKeywordSearch(); });
+
+    // ─── Semantic Search ─────────────────────────────────────────
+    const semInput = document.getElementById('sem-input');
+    const semBtn = document.getElementById('sem-btn');
+    const semResults = document.getElementById('sem-results');
+
+    async function doSemanticSearch() {
+      const q = semInput.value.trim();
+      if (!q) return;
+      semResults.innerHTML = '<p class="text-zinc-500 text-sm">Embedding query & searching...</p>';
+      const data = await api(`/api/semantic-search?q=${encodeURIComponent(q)}`);
+
+      if (data.error) { semResults.innerHTML = `<div class="bg-red-500/20 text-red-400 rounded p-3 text-sm">${data.error}</div>`; return; }
+      if (!data.results.length) { semResults.innerHTML = '<p class="text-zinc-500 text-sm">No results found.</p>'; return; }
+
+      semResults.innerHTML = data.results.map(r => {
+        const score = r.score !== undefined ? parseFloat(r.score) : 0;
+        const pct = Math.round(score * 100);
+        const barColor = score >= 0.5 ? 'bg-emerald-500' : score >= 0.3 ? 'bg-yellow-500' : 'bg-zinc-600';
+        return `
+        <div class="bg-card border border-border rounded-lg p-4 mb-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="font-medium text-sm">${esc(r.title || r.path)}</div>
+              <div class="text-xs text-zinc-500 mt-0.5">${esc(r.path)}</div>
+            </div>
+            <div class="shrink-0 w-20 flex flex-col items-center">
+              <div class="text-lg font-bold font-mono ${score >= 0.5 ? 'text-emerald-400' : score >= 0.3 ? 'text-yellow-400' : 'text-zinc-500'}">${(score * 100).toFixed(1)}%</div>
+              <div class="w-full bg-zinc-800 rounded h-1.5 mt-1">
+                <div class="${barColor} h-full rounded" style="width:${pct}%"></div>
+              </div>
+            </div>
+          </div>
+          ${r.chunkText ? `<div class="text-sm text-zinc-400 mt-2 leading-relaxed">${esc(r.chunkText.slice(0, 300))}${r.chunkText.length > 300 ? '...' : ''}</div>` : ''}
+          ${r.heading ? `<div class="text-xs text-zinc-600 mt-1">§ ${esc(r.heading)}</div>` : ''}
+        </div>
+      `}).join('');
+    }
+
+    semBtn.addEventListener('click', doSemanticSearch);
+    semInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSemanticSearch(); });
+
+    function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // ─── Graph ────────────────────────────────────────────────
+    let network = null;
+    let graphData = null;
+
+    async function initGraph() {
+      const container = document.getElementById('graph-container');
+      const data = await api('/api/graph/full');
+      graphData = data;
+
+      // Populate filter dropdowns
+      const types = [...new Set(data.nodes.map(n => n.group))].sort();
+      const relTypes = [...new Set(data.edges.map(e => e.label))].sort();
+
+      const typeFilter = document.getElementById('graph-type-filter');
+      types.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; typeFilter.appendChild(o); });
+
+      const relFilter = document.getElementById('graph-rel-filter');
+      relTypes.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; relFilter.appendChild(o); });
+
+      const nodes = new vis.DataSet(data.nodes);
+      const edges = new vis.DataSet(data.edges);
+
+      const options = {
+        physics: {
+          solver: 'forceAtlas2Based',
+          forceAtlas2Based: { gravitationalConstant: -30, centralGravity: 0.005, springLength: 100 },
+          stabilization: { iterations: 150 },
+        },
+        nodes: {
+          shape: 'dot', size: 14, font: { size: 11, color: '#a1a1aa' },
+          borderWidth: 0,
+        },
+        edges: {
+          color: { color: '#27272a', highlight: '#52525b' },
+          font: { size: 9, color: '#3f3f46', strokeWidth: 0 },
+          arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+          smooth: { type: 'continuous' },
+        },
+        interaction: { hover: true, tooltipDelay: 100 },
+        layout: { improvedLayout: true },
+      };
+
+      network = new vis.Network(container, { nodes, edges }, options);
+
+      network.once('stabilizationIterationsDone', () => {
+        network.setOptions({ physics: { enabled: false } });
+      });
+
+      network.on('click', async (params) => {
+        if (params.nodes.length > 0) {
+          const nodeId = params.nodes[0];
+          await showEntityDetail(nodeId);
+        } else {
+          document.getElementById('graph-detail').classList.add('hidden');
+        }
+      });
+
+      // Filters
+      typeFilter.addEventListener('change', reloadGraph);
+      relFilter.addEventListener('change', reloadGraph);
+
+      const graphSearch = document.getElementById('graph-search');
+      graphSearch.addEventListener('input', () => {
+        const q = graphSearch.value.toLowerCase();
+        if (!q) { network.unselectAll(); return; }
+        const match = data.nodes.filter(n => n.label.toLowerCase().includes(q));
+        if (match.length > 0) {
+          network.selectNodes(match.map(n => n.id));
+          network.focus(match[0].id, { scale: 1.2, animation: true });
+        }
+      });
+    }
+
+    async function reloadGraph() {
+      const type = document.getElementById('graph-type-filter').value;
+      const relType = document.getElementById('graph-rel-filter').value;
+      let url = '/api/graph/full?';
+      if (type) url += `type=${encodeURIComponent(type)}&`;
+      if (relType) url += `relType=${encodeURIComponent(relType)}`;
+      const data = await api(url);
+      graphData = data;
+      if (network) {
+        network.setData({
+          nodes: new vis.DataSet(data.nodes),
+          edges: new vis.DataSet(data.edges),
+        });
+      }
+    }
+
+    async function showEntityDetail(entityId) {
+      const panel = document.getElementById('graph-detail');
+      const content = document.getElementById('graph-detail-content');
+      panel.classList.remove('hidden');
+
+      const [rels, facts] = await Promise.all([
+        api(`/api/graph/relationships?entityId=${encodeURIComponent(entityId)}`),
+        api(`/api/graph/facts?entityId=${encodeURIComponent(entityId)}&limit=10`),
+      ]);
+
+      const entity = graphData.nodes.find(n => n.id === entityId);
+      content.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-sm">${esc(entity?.label || entityId)}</h3>
+          <button onclick="document.getElementById('graph-detail').classList.add('hidden')" class="text-zinc-500 hover:text-white text-lg">&times;</button>
+        </div>
+        <span class="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded">${esc(entity?.group || '')}</span>
+
+        <h4 class="text-xs font-semibold text-zinc-500 mt-4 mb-2">Relationships (${Array.isArray(rels) ? rels.length : 0})</h4>
+        <div class="space-y-1">
+          ${(Array.isArray(rels) ? rels : []).slice(0, 20).map(r => {
+            const other = r.sourceId === entityId ? r.targetId : r.sourceId;
+            const dir = r.sourceId === entityId ? '→' : '←';
+            return `<div class="text-xs text-zinc-400 bg-zinc-900 rounded px-2 py-1">${dir} <span class="text-accent cursor-pointer" onclick="showEntityDetail('${esc(other)}')">${esc(other)}</span> <span class="text-zinc-600">(${esc(r.type)})</span></div>`;
+          }).join('')}
+        </div>
+
+        <h4 class="text-xs font-semibold text-zinc-500 mt-4 mb-2">Facts (${Array.isArray(facts) ? facts.length : 0})</h4>
+        <div class="space-y-1">
+          ${(Array.isArray(facts) ? facts : []).map(f => `
+            <div class="text-xs text-zinc-400 bg-zinc-900 rounded px-2 py-1">
+              <span class="text-zinc-600">${f.recordedAt || ''}</span> ${esc(f.content.slice(0, 100))}
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // ─── DB Explorer ──────────────────────────────────────────
+    let dbTables = [];
+    let currentTable = '';
+
+    async function loadTables() {
+      dbTables = await api('/api/tables');
+      const list = document.getElementById('table-list');
+      list.innerHTML = dbTables.map(t => `
+        <button class="db-table-btn w-full text-left px-2 py-1.5 rounded text-xs hover:bg-zinc-800 flex justify-between items-center" data-table="${t.name}">
+          <span>${t.name}</span>
+          <span class="text-zinc-600">${t.rowCount}</span>
+        </button>
+      `).join('');
+      list.querySelectorAll('.db-table-btn').forEach(btn => {
+        btn.addEventListener('click', () => loadTableData(btn.dataset.table));
+      });
+    }
+
+    async function loadTableData(name, offset = 0, sort = '', order = 'asc') {
+      currentTable = name;
+      // Highlight active table
+      document.querySelectorAll('.db-table-btn').forEach(b => {
+        b.classList.toggle('bg-zinc-800', b.dataset.table === name);
+      });
+
+      const tableInfo = dbTables.find(t => t.name === name);
+      const url = `/api/tables/${encodeURIComponent(name)}/rows?limit=50&offset=${offset}${sort ? `&sort=${sort}&order=${order}` : ''}`;
+      const data = await api(url);
+
+      if (data.error) {
+        document.getElementById('table-content').innerHTML = `<p class="text-red-400 text-sm">${data.error}</p>`;
+        return;
+      }
+
+      const totalPages = Math.ceil(data.total / data.limit);
+      const currentPage = Math.floor(data.offset / data.limit) + 1;
+
+      document.getElementById('table-content').innerHTML = `
+        <div class="mb-3">
+          <h3 class="text-lg font-semibold">${esc(name)}</h3>
+          <div class="text-xs text-zinc-500 mt-1">${data.total} rows | ${tableInfo ? tableInfo.columns.length : data.columns.length} columns</div>
+          ${tableInfo ? `<div class="text-xs text-zinc-600 mt-1 font-mono bg-zinc-900 rounded p-2 mt-2">${esc(tableInfo.sql)}</div>` : ''}
+        </div>
+        <div class="overflow-auto border border-border rounded" style="max-height:calc(100vh - 200px)">
+          <table class="w-full text-xs">
+            <thead>
+              <tr>
+                ${data.columns.map(c => `
+                  <th class="px-2 py-2 text-left text-zinc-400 border-b border-border cursor-pointer hover:text-white whitespace-nowrap"
+                      onclick="loadTableData('${name}', 0, '${c}', '${sort === c && order === 'asc' ? 'desc' : 'asc'}')">${esc(c)} ${sort === c ? (order === 'asc' ? '↑' : '↓') : ''}</th>
+                `).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${data.rows.map(row => `
+                <tr class="hover:bg-zinc-900/50 border-b border-border/50">
+                  ${data.columns.map(c => `<td class="px-2 py-1.5 text-zinc-400 max-w-xs truncate">${esc(String(row[c] ?? ''))}</td>`).join('')}
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs text-zinc-500">
+          <span>Page ${currentPage} of ${totalPages} (${data.total} rows)</span>
+          <div class="flex gap-2">
+            ${data.offset > 0 ? `<button onclick="loadTableData('${name}', ${Math.max(0, data.offset - data.limit)}, '${sort}', '${order}')" class="px-2 py-1 bg-card border border-border rounded hover:bg-zinc-800">← Prev</button>` : ''}
+            ${data.offset + data.limit < data.total ? `<button onclick="loadTableData('${name}', ${data.offset + data.limit}, '${sort}', '${order}')" class="px-2 py-1 bg-card border border-border rounded hover:bg-zinc-800">Next →</button>` : ''}
+          </div>
+        </div>
+      `;
+    }
+    // ─── Command Palette (⌘K) ─────────────────────────────────
+    const cmdItems = [
+      { id: 'dashboard', label: 'Dashboard', icon: '◫', key: '1' },
+      { id: 'keyword',   label: 'Keyword Search', icon: '⌕', key: '2' },
+      { id: 'semantic',  label: 'Semantic Search', icon: '◉', key: '3' },
+      { id: 'graph',     label: 'Graph', icon: '⬡', key: '4' },
+      { id: 'db-explorer', label: 'DB Explorer', icon: '⊞', key: '5' },
+    ];
+
+    const cmdPalette = document.getElementById('cmd-palette');
+    const cmdInput = document.getElementById('cmd-input');
+    const cmdList = document.getElementById('cmd-list');
+    let cmdActive = 0;
+    let cmdFiltered = [...cmdItems];
+
+    function openCmd() {
+      cmdInput.value = '';
+      cmdActive = 0;
+      cmdFiltered = [...cmdItems];
+      renderCmd();
+      cmdPalette.classList.remove('hidden');
+      requestAnimationFrame(() => cmdInput.focus());
+    }
+
+    function closeCmd() {
+      cmdPalette.classList.add('hidden');
+    }
+
+    function renderCmd() {
+      cmdList.innerHTML = cmdFiltered.map((item, i) => `
+        <div class="cmd-item ${i === cmdActive ? 'active' : ''}" data-idx="${i}">
+          <span class="cmd-icon">${item.icon}</span>
+          <span>${item.label}</span>
+          <span class="cmd-key">${item.key}</span>
+        </div>
+      `).join('');
+      cmdList.querySelectorAll('.cmd-item').forEach(el => {
+        el.addEventListener('mouseenter', () => { cmdActive = parseInt(el.dataset.idx); renderCmd(); });
+        el.addEventListener('click', () => selectCmd());
+      });
+    }
+
+    function selectCmd() {
+      if (cmdFiltered[cmdActive]) {
+        const tab = cmdFiltered[cmdActive].id;
+        const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+        if (btn) btn.click();
+      }
+      closeCmd();
+    }
+
+    cmdInput.addEventListener('input', () => {
+      const q = cmdInput.value.toLowerCase();
+      cmdFiltered = cmdItems.filter(item => item.label.toLowerCase().includes(q));
+      cmdActive = 0;
+      renderCmd();
+    });
+
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); cmdActive = Math.min(cmdActive + 1, cmdFiltered.length - 1); renderCmd(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); cmdActive = Math.max(cmdActive - 1, 0); renderCmd(); }
+      else if (e.key === 'Enter') { e.preventDefault(); selectCmd(); }
+      else if (e.key === 'Escape') { closeCmd(); }
+    });
+
+    // Overlay click to close
+    cmdPalette.addEventListener('click', (e) => { if (e.target === cmdPalette) closeCmd(); });
+
+    // ⌘K global shortcut
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        cmdPalette.classList.contains('hidden') ? openCmd() : closeCmd();
+      }
+      if (e.key === 'Escape' && !cmdPalette.classList.contains('hidden')) {
+        closeCmd();
+      }
+    });
+  </script>
+</body>
+</html>
