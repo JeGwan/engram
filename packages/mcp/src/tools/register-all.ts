@@ -13,11 +13,13 @@ import {
   findSimilarByFile,
   embed,
   searchVectors,
+  hybridSearch,
   seedEntities,
   runExtraction,
   runEmbedIndex,
   indexFiles,
   deleteStaleFiles,
+  searchConversations,
 } from '@engram/core';
 import { startWebServer, stopWebServer, isWebRunning, getWebUrl, type WebServerDeps } from '@engram/web';
 
@@ -161,10 +163,57 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
         if (!file) return null;
         const score = (r.score * 100).toFixed(1);
         const heading = r.heading ? ` > ${r.heading}` : '';
-        return `${i + 1}. **${file.title}**${heading} (${score}%) — ${file.path}`;
+        const chunk = ctx.db.queryOne<{ chunk_text: string }>(
+          'SELECT chunk_text FROM embeddings WHERE id = ?', [r.id],
+        );
+        const snippet = chunk?.chunk_text
+          ? `\n   ${chunk.chunk_text.slice(0, 120).replace(/\n/g, ' ')}`
+          : '';
+        return `${i + 1}. **${file.title}**${heading} (${score}%) — ${file.path}${snippet}`;
       }).filter(Boolean);
 
       return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
+    },
+  );
+
+  server.tool(
+    'vault_hybrid_search',
+    'FTS5 + 시맨틱 검색을 RRF로 결합한 하이브리드 검색 (더 높은 정확도)',
+    {
+      query: z.string().describe('검색 질의'),
+      limit: z.coerce.number().optional().describe('결과 수 (기본 10)'),
+      directory: z.string().optional().describe('디렉토리 필터 (e.g. "3-업무")'),
+      tag: z.string().optional().describe('태그 필터'),
+      since: z.string().optional().describe('이후 수정된 파일만 (YYYY-MM-DD)'),
+      until: z.string().optional().describe('이전 수정된 파일만 (YYYY-MM-DD)'),
+    },
+    async ({ query, limit, directory, tag, since, until }) => {
+      if (ctx.vectors.length === 0) {
+        return { content: [{ type: 'text' as const, text: '임베딩 없음. vault_embed 먼저 실행하세요.' }] };
+      }
+      const queryVec = await embed(query, ctx.ollamaUrl, ctx.ollamaModel);
+      const filterOptions = {
+        directory: directory || undefined,
+        tag: tag || undefined,
+        since: since ? new Date(since).getTime() : undefined,
+        until: until ? new Date(until).getTime() : undefined,
+      };
+      const results = hybridSearch(ctx.db, ctx.vectors, queryVec, query, limit ?? 10, 60, filterOptions);
+
+      if (results.length === 0) {
+        return { content: [{ type: 'text' as const, text: `'${query}' 하이브리드 검색 결과 없음` }] };
+      }
+
+      const header = `| # | 제목 | FTS | Vec | RRF | 내용 | 경로 |\n|---|------|-----|-----|-----|------|------|`;
+      const rows = results.map((r, i) => {
+        const fts = r.ftsRank !== null ? `#${r.ftsRank}` : '—';
+        const vec = r.vecRank !== null ? `#${r.vecRank}` : '—';
+        const rrf = r.rrfScore.toFixed(4);
+        const detail = (r.snippet ?? r.heading ?? '').replace(/\n/g, ' ').slice(0, 60);
+        return `| ${i + 1} | **${r.title}** | ${fts} | ${vec} | ${rrf} | ${detail} | ${r.path} |`;
+      });
+
+      return { content: [{ type: 'text' as const, text: [header, ...rows].join('\n') }] };
     },
   );
 
@@ -305,6 +354,33 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
         `Totals: ${totalEntities} entities, ${totalRels} relationships, ${totalFacts} facts`,
       ].join('\n');
       return { content: [{ type: 'text' as const, text }] };
+    },
+  );
+
+  // ─── Conversations ───
+
+  server.tool(
+    'vault_conversation_search',
+    '과거 대화 기록 검색 — FTS5 키워드 또는 최신순 조회',
+    {
+      query: z.string().optional().describe('검색 키워드 (생략 시 최신순)'),
+      since: z.string().optional().describe('시작일 (YYYY-MM-DD)'),
+      until: z.string().optional().describe('종료일 (YYYY-MM-DD)'),
+      limit: z.coerce.number().optional().describe('결과 수 (기본 10)'),
+    },
+    async ({ query, since, until, limit }) => {
+      const rows = searchConversations(ctx.db, { query, since, until, limit: limit ?? 10 });
+      if (rows.length === 0) {
+        return { content: [{ type: 'text' as const, text: '대화 기록 없음' }] };
+      }
+      const lines = rows.map((r, i) => {
+        const topics = r.topics ? ` [${r.topics}]` : '';
+        const outcome = r.outcome ? `\n   결과: ${r.outcome}` : '';
+        const next = r.next_actions ? `\n   다음: ${r.next_actions}` : '';
+        return `${i + 1}. **${r.date}**${topics}\n   ${r.summary}${outcome}${next}`;
+      });
+      const header = query ? `'${query}' 대화 검색 (${rows.length}건)` : `최근 대화 기록 (${rows.length}건)`;
+      return { content: [{ type: 'text' as const, text: `${header}:\n\n${lines.join('\n\n')}` }] };
     },
   );
 

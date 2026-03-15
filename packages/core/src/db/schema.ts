@@ -124,6 +124,46 @@ export function initSchema(db: IDatabase): void {
     `);
     setSchemaVersion(db, 5);
   }
+
+  if (version < 6) {
+    db.execMulti(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id           INTEGER PRIMARY KEY,
+        session_id   TEXT UNIQUE NOT NULL,
+        date         TEXT NOT NULL,
+        summary      TEXT NOT NULL,
+        topics       TEXT NOT NULL DEFAULT '',
+        outcome      TEXT,
+        next_actions TEXT,
+        recorded_at  INTEGER NOT NULL
+      );
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS conversations_fts USING fts5(
+        summary, topics, outcome, next_actions,
+        content=conversations, content_rowid=id
+      );
+
+      CREATE TRIGGER IF NOT EXISTS conv_ai AFTER INSERT ON conversations BEGIN
+        INSERT INTO conversations_fts(rowid, summary, topics, outcome, next_actions)
+        VALUES (new.id, new.summary, new.topics, new.outcome, new.next_actions);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS conv_ad AFTER DELETE ON conversations BEGIN
+        INSERT INTO conversations_fts(conversations_fts, rowid, summary, topics, outcome, next_actions)
+        VALUES ('delete', old.id, old.summary, old.topics, old.outcome, old.next_actions);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS conv_au AFTER UPDATE ON conversations BEGIN
+        INSERT INTO conversations_fts(conversations_fts, rowid, summary, topics, outcome, next_actions)
+        VALUES ('delete', old.id, old.summary, old.topics, old.outcome, old.next_actions);
+        INSERT INTO conversations_fts(rowid, summary, topics, outcome, next_actions)
+        VALUES (new.id, new.summary, new.topics, new.outcome, new.next_actions);
+      END;
+
+      CREATE INDEX IF NOT EXISTS idx_conversations_date ON conversations(date);
+    `);
+    setSchemaVersion(db, 6);
+  }
 }
 
 function getSchemaVersion(db: IDatabase): number {

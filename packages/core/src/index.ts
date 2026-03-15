@@ -61,5 +61,18 @@ export {
   extractFromNotes,
 } from './graph/extractor.js';
 
+// ─── Conversations ───
+export {
+  addConversation,
+  searchConversations,
+  type ConversationRecord,
+  type ConversationRow,
+  type SearchConversationsOptions,
+} from './conversations/conversation-store.js';
+
+// ─── Hybrid Search ───
+export type { HybridResult, HybridFilterOptions } from './search/hybrid.js';
+export { hybridSearch } from './search/hybrid.js';
+
 // ─── Stats ───
 export { getVaultStats } from './stats.js';

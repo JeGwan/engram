@@ -150,7 +150,7 @@ function createHttpServer(deps: WebServerDeps): http.Server {
     }
 
     // Static files
-    const publicDir = path.resolve(__dirname, '../../public');
+    const publicDir = path.resolve(__dirname, '../public');
     if (pathname === '/' || pathname === '/index.html') {
       serveStatic(res, path.join(publicDir, 'index.html'));
     } else {
