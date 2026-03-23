@@ -61,7 +61,7 @@ export default class EngramPlugin extends Plugin {
         this.activateView();
         const view = this.getView();
         if (view) {
-          (view as any).switchTab('keyword');
+          (view as any).switchTab('search');
         }
       },
     });

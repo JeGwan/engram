@@ -1,18 +1,15 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type EngramPlugin from './main';
 import { DashboardRenderer } from './ui/dashboard';
-import { KeywordSearchRenderer } from './ui/keyword-search';
-import { SemanticSearchRenderer } from './ui/semantic-search';
-import { HybridSearchRenderer } from './ui/hybrid-search';
+import { SearchRenderer } from './ui/search';
 import { GraphViewRenderer } from './ui/graph-view';
-import { DbExplorerRenderer } from './ui/db-explorer';
 import { CommandPalette } from './ui/command-palette';
 import { el } from './ui/components';
 import type { BaseRenderer } from './ui/base-renderer';
 
 export const VIEW_TYPE_ENGRAM = 'engram-view';
 
-type TabId = 'dashboard' | 'keyword' | 'semantic' | 'hybrid' | 'graph' | 'db-explorer';
+type TabId = 'dashboard' | 'search' | 'graph';
 
 interface TabDef {
   id: TabId;
@@ -22,11 +19,8 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { id: 'keyword', label: 'Keyword', icon: '🔍' },
-  { id: 'semantic', label: 'Semantic', icon: '🧠' },
-  { id: 'hybrid', label: 'Hybrid', icon: '⚡' },
+  { id: 'search', label: 'Search', icon: '🔍' },
   { id: 'graph', label: 'Graph', icon: '🕸' },
-  { id: 'db-explorer', label: 'DB Explorer', icon: '🗄' },
 ];
 
 export class EngramView extends ItemView {
@@ -128,20 +122,11 @@ export class EngramView extends ItemView {
       case 'dashboard':
         this.currentRenderer = new DashboardRenderer(engine, () => this.renderActiveTab());
         break;
-      case 'keyword':
-        this.currentRenderer = new KeywordSearchRenderer(engine, this.app);
-        break;
-      case 'semantic':
-        this.currentRenderer = new SemanticSearchRenderer(engine, this.app);
-        break;
-      case 'hybrid':
-        this.currentRenderer = new HybridSearchRenderer(engine, this.app);
+      case 'search':
+        this.currentRenderer = new SearchRenderer(engine, this.app);
         break;
       case 'graph':
         this.currentRenderer = new GraphViewRenderer(engine);
-        break;
-      case 'db-explorer':
-        this.currentRenderer = new DbExplorerRenderer(engine);
         break;
     }
 
@@ -161,11 +146,8 @@ export class EngramView extends ItemView {
 
     this.palette.setCommands([
       { id: 'dashboard', name: 'Go to Dashboard', icon: '📊', callback: () => this.switchTab('dashboard') },
-      { id: 'keyword', name: 'Keyword Search', icon: '🔍', callback: () => this.switchTab('keyword') },
-      { id: 'semantic', name: 'Semantic Search', icon: '🧠', callback: () => this.switchTab('semantic') },
-      { id: 'hybrid', name: 'Hybrid Search', icon: '⚡', callback: () => this.switchTab('hybrid') },
+      { id: 'search', name: 'Search', icon: '🔍', callback: () => this.switchTab('search') },
       { id: 'graph', name: 'Knowledge Graph', icon: '🕸', callback: () => this.switchTab('graph') },
-      { id: 'db-explorer', name: 'DB Explorer', icon: '🗄', callback: () => this.switchTab('db-explorer') },
       {
         id: 'reindex', name: 'Reindex Vault', icon: '🔄',
         callback: async () => {

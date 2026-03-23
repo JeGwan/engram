@@ -241,6 +241,47 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Mode Switcher ── */
+.engram-mode-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 2px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+}
+
+.engram-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.engram-mode-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.engram-mode-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.engram-mode-active:hover {
+  background: var(--interactive-accent-hover);
+  color: var(--text-on-accent);
+}
+
 /* ── Search ── */
 .engram-search-controls {
   display: flex;
