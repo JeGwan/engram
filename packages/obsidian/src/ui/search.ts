@@ -173,16 +173,23 @@ export class SearchRenderer extends BaseRenderer {
         title: r.title,
         path: r.path,
         snippet: r.snippet ?? r.heading ?? undefined,
-        score: r.rrfScore,
         onClick: () => this.app.workspace.openLinkText(r.path, '', false),
       });
 
-      const badge = el('span', {
-        class: `engram-source-badge engram-source-${r.sources}`,
-        text: r.sources.toUpperCase(),
-      });
+      // Score + source badge group (right side of header)
       const header = card.querySelector('.engram-result-header');
-      if (header) header.appendChild(badge);
+      if (header) {
+        const badges = el('span', { class: 'engram-result-badges' });
+        badges.appendChild(el('span', {
+          class: 'engram-result-score',
+          text: r.rrfScore.toFixed(3),
+        }));
+        badges.appendChild(el('span', {
+          class: `engram-source-badge engram-source-${r.sources}`,
+          text: r.sources.toUpperCase(),
+        }));
+        header.appendChild(badges);
+      }
 
       this.resultsContainer!.appendChild(card);
     }

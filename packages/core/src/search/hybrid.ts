@@ -45,7 +45,7 @@ export function hybridSearch(
   // ── FTS5 search ──
   let ftsSql = `
     SELECT f.path, f.title,
-           snippet(files_fts, 1, '>>>', '<<<', '...', 40) as snippet
+           snippet(files_fts, 1, '<mark>', '</mark>', '...', 40) as snippet
      FROM files_fts fts
      JOIN files f ON f.id = fts.rowid
      WHERE files_fts MATCH ?
