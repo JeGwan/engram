@@ -3,7 +3,8 @@
   "name": "Engram",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Full-text search (FTS5), semantic search (Ollama embeddings), and knowledge graph for your vault.",
-  "author": "Posthuman",
+  "description": "Search your vault with full-text search, semantic search via Ollama embeddings, and an interactive knowledge graph.",
+  "author": "JeGwan Oh",
+  "authorUrl": "https://github.com/JeGwan",
   "isDesktopOnly": false
 }

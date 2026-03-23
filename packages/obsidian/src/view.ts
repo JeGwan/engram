@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import type EngramPlugin from './main';
 import { DashboardRenderer } from './ui/dashboard';
 import { KeywordSearchRenderer } from './ui/keyword-search';
@@ -164,7 +164,7 @@ export class EngramView extends ItemView {
         id: 'reindex', name: 'Reindex Vault', icon: '🔄',
         callback: async () => {
           const result = await engine.fullIndex(true);
-          console.log('[Engram] Reindex:', result);
+          new Notice(`Engram: Reindexed ${result.indexed} files (${result.durationMs}ms)`);
           this.renderActiveTab();
         },
       },
@@ -173,10 +173,10 @@ export class EngramView extends ItemView {
         callback: async () => {
           try {
             const result = await engine.runEmbedding();
-            console.log('[Engram] Embedding:', result);
+            new Notice(`Engram: Embedded ${result.embedded} files (${result.errors} errors)`);
             this.renderActiveTab();
           } catch (e: any) {
-            console.error('[Engram] Embedding error:', e.message);
+            new Notice(`Engram: Embedding failed — ${e.message}`);
           }
         },
       },
@@ -184,7 +184,7 @@ export class EngramView extends ItemView {
         id: 'extract', name: 'Extract Graph', icon: '🕸',
         callback: () => {
           const result = engine.runGraphExtraction();
-          console.log('[Engram] Extraction:', result);
+          new Notice(`Engram: ${result.entitiesDiscovered} entities, ${result.relationships} rels`);
           this.renderActiveTab();
         },
       },

@@ -27,8 +27,6 @@ export default class EngramPlugin extends Plugin {
   );
 
   async onload(): Promise<void> {
-    console.log('[Engram] Loading plugin...');
-
     await this.loadSettings();
     this.addSettingTab(new EngramSettingTab(this.app, this));
 
@@ -112,7 +110,6 @@ export default class EngramPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
-    console.log('[Engram] Unloading plugin...');
     if (this.dbAdapter) {
       await this.dbAdapter.close();
       this.dbAdapter = null;
@@ -161,14 +158,12 @@ export default class EngramPlugin extends Plugin {
 
       // Auto-index on startup
       if (this.settings.autoIndexOnStartup) {
-        const result = await this.engine.fullIndex();
-        console.log(`[Engram] Startup index: ${result.indexed} new, ${result.skipped} skipped, ${result.deleted} deleted (${result.durationMs}ms)`);
+        await this.engine.fullIndex();
       }
 
       // Load vector cache if embeddings enabled
       if (this.settings.embeddingEnabled) {
-        const count = this.engine.loadVectorCache();
-        console.log(`[Engram] Loaded ${count} vectors`);
+        this.engine.loadVectorCache();
       }
 
       // Register vault events for real-time indexing
@@ -196,11 +191,10 @@ export default class EngramPlugin extends Plugin {
         }),
       );
 
-      console.log('[Engram] Plugin initialized successfully');
       this.refreshViews();
     } catch (err) {
       console.error('[Engram] Failed to initialize:', err);
-      new Notice(`Engram: Failed to initialize database: ${err}`);
+      new Notice(`Engram: Failed to initialize — ${err}`);
     }
   }
 

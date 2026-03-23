@@ -191,6 +191,9 @@ export class EngramEngine {
   // ───── Semantic Search ─────
 
   async semanticSearch(query: string, topK = 10): Promise<SemanticResult[]> {
+    if (!await this.isOllamaAvailable()) {
+      throw new Error('Ollama is not running. Start Ollama to use semantic search.');
+    }
     const queryVec = await embed(query, this.settings.ollamaUrl, this.settings.ollamaModel);
     const vectorResults = searchVectors(this.vectors, queryVec, topK);
 

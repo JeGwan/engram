@@ -2,6 +2,7 @@
  * Shared UI helpers — pure DOM, no framework.
  * Uses Obsidian CSS variables for theming.
  */
+import { sanitizeHTMLToDom } from 'obsidian';
 
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -106,7 +107,7 @@ export function createResultCard(opts: {
 
   if (opts.snippet) {
     const snippetEl = el('div', { class: 'engram-result-snippet' });
-    snippetEl.innerHTML = opts.snippet;
+    snippetEl.appendChild(sanitizeHTMLToDom(opts.snippet));
     card.appendChild(snippetEl);
   }
 
