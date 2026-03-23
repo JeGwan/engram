@@ -7,6 +7,7 @@ import { handleStats } from './routes/stats.js';
 import { handleSearch, handleSemanticSearch } from './routes/search.js';
 import { handleTables, handleTableRows } from './routes/db-explorer.js';
 import { handleGraphEntities, handleGraphRelationships, handleGraphFull, handleGraphFacts } from './routes/graph.js';
+import { handleGraphPath, handleGraphNeighborhood, handleGraphAnalysis, handleGraphTemporal } from './routes/graph-analysis.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -66,6 +67,10 @@ addRoute('/api/graph/entities', handleGraphEntities);
 addRoute('/api/graph/relationships', handleGraphRelationships);
 addRoute('/api/graph/full', handleGraphFull);
 addRoute('/api/graph/facts', handleGraphFacts);
+addRoute('/api/graph/path', handleGraphPath);
+addRoute('/api/graph/neighborhood', handleGraphNeighborhood);
+addRoute('/api/graph/analysis', handleGraphAnalysis);
+addRoute('/api/graph/temporal', handleGraphTemporal);
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

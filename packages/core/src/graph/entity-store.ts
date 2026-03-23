@@ -38,9 +38,10 @@ export function upsertEntity(
     sourcePath?: string;
   },
 ): void {
+  const now = new Date().toISOString().slice(0, 10);
   db.execute(
-    `INSERT INTO entities (id, type, name, aliases, metadata, source_path)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO entities (id, type, name, aliases, metadata, source_path, first_seen, last_seen, mention_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
      ON CONFLICT(id) DO UPDATE SET
        type = excluded.type,
        name = excluded.name,
@@ -54,7 +55,23 @@ export function upsertEntity(
       JSON.stringify(entity.aliases ?? []),
       JSON.stringify(entity.metadata ?? {}),
       entity.sourcePath ?? null,
+      now,
+      now,
     ],
+  );
+}
+
+/**
+ * Record a mention of an entity: increment mention_count, update last_seen.
+ */
+export function recordEntityMention(db: IDatabase, entityId: string, date?: string): void {
+  const d = date ?? new Date().toISOString().slice(0, 10);
+  db.execute(
+    `UPDATE entities SET
+       mention_count = mention_count + 1,
+       last_seen = CASE WHEN last_seen IS NULL OR last_seen < ? THEN ? ELSE last_seen END
+     WHERE id = ?`,
+    [d, d, entityId],
   );
 }
 
@@ -83,6 +100,9 @@ function deserializeEntity(row: any): Entity {
     aliases: safeJsonParse(row.aliases, []),
     metadata: safeJsonParse(row.metadata, {}),
     sourcePath: row.source_path,
+    firstSeen: row.first_seen ?? null,
+    lastSeen: row.last_seen ?? null,
+    mentionCount: row.mention_count ?? 0,
   };
 }
 

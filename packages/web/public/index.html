@@ -45,6 +45,24 @@
     .cmd-item .cmd-icon { width: 20px; text-align: center; font-size: 14px; }
     .cmd-item .cmd-key { margin-left: auto; font-size: 10px; color: #52525b; background: #1e1e24; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
     .cmd-item.active .cmd-key { color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); }
+    /* Onboarding */
+    .onboard-overlay { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+    .onboard-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 99; }
+    .onboard-card { position: fixed; z-index: 101; background: #1e1e24; border: 1px solid #3b82f6; border-radius: 12px; padding: 20px; max-width: 380px; pointer-events: auto; box-shadow: 0 8px 32px rgba(59,130,246,0.2); }
+    .onboard-card h3 { color: #e4e4e7; font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+    .onboard-card p { color: #a1a1aa; font-size: 13px; line-height: 1.6; }
+    .onboard-card .step-badge { display: inline-block; background: #3b82f6; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-bottom: 8px; }
+    .onboard-card .shortcut { background: #27272a; color: #a1a1aa; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+    .onboard-btns { display: flex; gap: 8px; margin-top: 14px; }
+    .onboard-btns button { padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; }
+    .onboard-btns .btn-next { background: #3b82f6; color: white; }
+    .onboard-btns .btn-next:hover { background: #2563eb; }
+    .onboard-btns .btn-skip { background: transparent; color: #52525b; border: 1px solid #27272a; }
+    .onboard-btns .btn-skip:hover { color: #a1a1aa; }
+    .onboard-highlight { position: fixed; z-index: 100; border: 2px solid #3b82f6; border-radius: 8px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0,0,0,0.65); }
+    .onboard-dots { display: flex; gap: 6px; margin-top: 12px; justify-content: center; }
+    .onboard-dot { width: 6px; height: 6px; border-radius: 50%; background: #27272a; }
+    .onboard-dot.active { background: #3b82f6; }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden">
@@ -71,6 +89,12 @@
       <p class="text-[10px] text-zinc-600 uppercase tracking-wider px-3 pt-3 pb-1">Explore</p>
       <button class="tab-btn text-left px-3 py-2 rounded text-sm flex items-center gap-2" data-tab="graph"><span class="w-5 text-center">⬡</span>Graph</button>
       <button class="tab-btn text-left px-3 py-2 rounded text-sm flex items-center gap-2" data-tab="db-explorer"><span class="w-5 text-center">⊞</span>DB Explorer</button>
+    </div>
+    <div class="mt-auto p-2 border-t border-border">
+      <button id="help-btn" class="w-full text-left px-3 py-2 rounded text-sm flex items-center gap-2 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800">
+        <span class="w-5 text-center">?</span>Guide
+        <span class="ml-auto text-[10px] text-zinc-600 font-mono">?</span>
+      </button>
     </div>
   </nav>
 
@@ -124,19 +148,46 @@
     <div id="tab-graph" class="tab-content flex-1 overflow-hidden hidden">
       <div class="flex h-full">
         <div class="flex-1 relative">
-          <div class="absolute top-3 left-3 right-3 z-10 flex gap-2">
+          <!-- Top controls -->
+          <div class="absolute top-3 left-3 right-3 z-10 flex gap-2 flex-wrap">
             <select id="graph-type-filter" class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs">
               <option value="">All types</option>
             </select>
             <select id="graph-rel-filter" class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs">
               <option value="">All relationships</option>
             </select>
+            <select id="graph-color-mode" class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs">
+              <option value="type">Color: Type</option>
+              <option value="community">Color: Community</option>
+            </select>
             <input id="graph-search" type="text" placeholder="Search entity..."
+              class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs flex-1 min-w-[120px]">
+            <button id="graph-ego-btn" class="bg-purple-600/80 text-white px-2 py-1 rounded text-xs hover:bg-purple-500 hidden">Exit Ego</button>
+          </div>
+          <!-- Path finder bar -->
+          <div id="graph-path-bar" class="absolute top-12 left-3 right-3 z-10 flex gap-2 hidden">
+            <input id="path-from" type="text" placeholder="From entity..."
               class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs flex-1">
+            <input id="path-to" type="text" placeholder="To entity..."
+              class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs flex-1">
+            <button id="path-find-btn" class="bg-emerald-600/80 text-white px-3 py-1 rounded text-xs hover:bg-emerald-500">Find Path</button>
+            <button id="path-close-btn" class="text-zinc-500 hover:text-white text-xs">&times;</button>
+          </div>
+          <!-- Bottom controls -->
+          <div class="absolute bottom-3 left-3 right-3 z-10 flex gap-2 items-center">
+            <button id="graph-path-toggle" class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs hover:bg-zinc-800">Path</button>
+            <span class="text-zinc-600 text-xs">|</span>
+            <label class="text-zinc-500 text-xs">Edge width:</label>
+            <select id="graph-edge-mode" class="bg-card/90 backdrop-blur border border-border rounded px-2 py-1 text-xs">
+              <option value="uniform">Uniform</option>
+              <option value="weight" selected>By Weight</option>
+            </select>
+            <span class="flex-1"></span>
+            <span id="graph-status" class="text-zinc-600 text-xs"></span>
           </div>
           <div id="graph-container"></div>
         </div>
-        <div id="graph-detail" class="w-72 bg-card border-l border-border overflow-auto p-4 hidden">
+        <div id="graph-detail" class="w-80 bg-card border-l border-border overflow-auto p-4 hidden">
           <div id="graph-detail-content"></div>
         </div>
       </div>
@@ -367,6 +418,10 @@
     // ─── Graph ────────────────────────────────────────────────
     let network = null;
     let graphData = null;
+    let communityColors = null;
+    let egoMode = false;
+
+    const COMMUNITY_PALETTE = ['#3b82f6','#22c55e','#f97316','#a855f7','#eab308','#ec4899','#06b6d4','#14b8a6','#f43f5e','#8b5cf6','#84cc16','#f59e0b','#e879f9','#67e8f9','#fb923c'];
 
     async function initGraph() {
       const container = document.getElementById('graph-container');
@@ -383,8 +438,71 @@
       const relFilter = document.getElementById('graph-rel-filter');
       relTypes.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; relFilter.appendChild(o); });
 
+      renderGraph(data);
+
+      // Filters
+      typeFilter.addEventListener('change', reloadGraph);
+      relFilter.addEventListener('change', reloadGraph);
+
+      const graphSearch = document.getElementById('graph-search');
+      graphSearch.addEventListener('input', () => {
+        const q = graphSearch.value.toLowerCase();
+        if (!q) { network.unselectAll(); return; }
+        const match = graphData.nodes.filter(n => n.label.toLowerCase().includes(q));
+        if (match.length > 0) {
+          network.selectNodes(match.map(n => n.id));
+          network.focus(match[0].id, { scale: 1.2, animation: true });
+        }
+      });
+
+      // Color mode
+      document.getElementById('graph-color-mode').addEventListener('change', async (e) => {
+        if (e.target.value === 'community' && !communityColors) {
+          const communities = await api('/api/graph/analysis?type=communities');
+          communityColors = {};
+          communities.forEach((c, i) => {
+            const color = COMMUNITY_PALETTE[i % COMMUNITY_PALETTE.length];
+            c.members.forEach(m => { communityColors[m.entityId] = color; });
+          });
+        }
+        recolorGraph(e.target.value);
+      });
+
+      // Edge width mode
+      document.getElementById('graph-edge-mode').addEventListener('change', (e) => {
+        reloadGraph();
+      });
+
+      // Path finder
+      document.getElementById('graph-path-toggle').addEventListener('click', () => {
+        document.getElementById('graph-path-bar').classList.toggle('hidden');
+      });
+      document.getElementById('path-close-btn').addEventListener('click', () => {
+        document.getElementById('graph-path-bar').classList.add('hidden');
+      });
+      document.getElementById('path-find-btn').addEventListener('click', findPathBetween);
+
+      // Ego mode exit
+      document.getElementById('graph-ego-btn').addEventListener('click', () => {
+        egoMode = false;
+        document.getElementById('graph-ego-btn').classList.add('hidden');
+        reloadGraph();
+      });
+
+      updateGraphStatus();
+    }
+
+    function renderGraph(data) {
+      const container = document.getElementById('graph-container');
+      const edgeMode = document.getElementById('graph-edge-mode').value;
+
+      const edgesFormatted = data.edges.map(e => ({
+        ...e,
+        width: edgeMode === 'weight' ? Math.max(0.5, Math.min(6, (e.value || 1) * 2)) : 1,
+      }));
+
       const nodes = new vis.DataSet(data.nodes);
-      const edges = new vis.DataSet(data.edges);
+      const edges = new vis.DataSet(edgesFormatted);
 
       const options = {
         physics: {
@@ -393,14 +511,15 @@
           stabilization: { iterations: 150 },
         },
         nodes: {
-          shape: 'dot', size: 14, font: { size: 11, color: '#a1a1aa' },
-          borderWidth: 0,
+          shape: 'dot', font: { size: 11, color: '#a1a1aa' },
+          borderWidth: 0, scaling: { min: 8, max: 25 },
         },
         edges: {
-          color: { color: '#27272a', highlight: '#52525b' },
+          color: { color: '#27272a', highlight: '#3b82f6', hover: '#52525b' },
           font: { size: 9, color: '#3f3f46', strokeWidth: 0 },
           arrows: { to: { enabled: true, scaleFactor: 0.5 } },
           smooth: { type: 'continuous' },
+          scaling: { min: 0.5, max: 6 },
         },
         interaction: { hover: true, tooltipDelay: 100 },
         layout: { improvedLayout: true },
@@ -414,27 +533,30 @@
 
       network.on('click', async (params) => {
         if (params.nodes.length > 0) {
-          const nodeId = params.nodes[0];
-          await showEntityDetail(nodeId);
+          await showEntityDetail(params.nodes[0]);
         } else {
           document.getElementById('graph-detail').classList.add('hidden');
         }
       });
 
-      // Filters
-      typeFilter.addEventListener('change', reloadGraph);
-      relFilter.addEventListener('change', reloadGraph);
-
-      const graphSearch = document.getElementById('graph-search');
-      graphSearch.addEventListener('input', () => {
-        const q = graphSearch.value.toLowerCase();
-        if (!q) { network.unselectAll(); return; }
-        const match = data.nodes.filter(n => n.label.toLowerCase().includes(q));
-        if (match.length > 0) {
-          network.selectNodes(match.map(n => n.id));
-          network.focus(match[0].id, { scale: 1.2, animation: true });
+      network.on('doubleClick', async (params) => {
+        if (params.nodes.length > 0) {
+          await loadEgoGraph(params.nodes[0]);
         }
       });
+
+      updateGraphStatus();
+    }
+
+    function recolorGraph(mode) {
+      if (!graphData || !network) return;
+      const updatedNodes = graphData.nodes.map(n => ({
+        id: n.id,
+        color: mode === 'community' && communityColors?.[n.id]
+          ? communityColors[n.id]
+          : n.color,
+      }));
+      network.body.data.nodes.update(updatedNodes);
     }
 
     async function reloadGraph() {
@@ -445,12 +567,63 @@
       if (relType) url += `relType=${encodeURIComponent(relType)}`;
       const data = await api(url);
       graphData = data;
-      if (network) {
-        network.setData({
-          nodes: new vis.DataSet(data.nodes),
-          edges: new vis.DataSet(data.edges),
-        });
+      renderGraph(data);
+    }
+
+    async function loadEgoGraph(entityId) {
+      const data = await api(`/api/graph/neighborhood?entityId=${encodeURIComponent(entityId)}&hops=2`);
+      if (!data.nodes || data.nodes.length <= 1) return;
+      egoMode = true;
+      graphData = data;
+      document.getElementById('graph-ego-btn').classList.remove('hidden');
+      renderGraph(data);
+      updateGraphStatus();
+    }
+
+    async function findPathBetween() {
+      const from = document.getElementById('path-from').value.trim();
+      const to = document.getElementById('path-to').value.trim();
+      if (!from || !to) return;
+
+      const data = await api(`/api/graph/path?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      if (!data.found) {
+        document.getElementById('graph-status').textContent = `No path: ${from} ↔ ${to}`;
+        return;
       }
+
+      // Highlight path on current graph
+      if (network) {
+        const pathIds = data.path.map(p => p.id);
+        network.selectNodes(pathIds);
+        network.focus(pathIds[Math.floor(pathIds.length / 2)].id || pathIds[0], { scale: 1, animation: true });
+
+        // Color path edges
+        const pathEdgeSet = new Set();
+        for (let i = 0; i < data.edges.length; i++) {
+          pathEdgeSet.add(`${data.edges[i].from}::${data.edges[i].to}`);
+          pathEdgeSet.add(`${data.edges[i].to}::${data.edges[i].from}`);
+        }
+
+        const edgeUpdates = [];
+        network.body.data.edges.forEach(e => {
+          const key = `${e.from}::${e.to}`;
+          if (pathEdgeSet.has(key)) {
+            edgeUpdates.push({ id: e.id, color: { color: '#f97316' }, width: 4 });
+          }
+        });
+        if (edgeUpdates.length > 0) network.body.data.edges.update(edgeUpdates);
+
+        document.getElementById('graph-status').textContent =
+          `Path: ${data.path.map(p => p.name).join(' → ')} (${data.hops} hops)`;
+      }
+    }
+
+    function updateGraphStatus() {
+      const el = document.getElementById('graph-status');
+      if (!graphData) return;
+      const nCount = graphData.nodes?.length ?? 0;
+      const eCount = graphData.edges?.length ?? 0;
+      el.textContent = `${nCount} nodes, ${eCount} edges${egoMode ? ' (ego)' : ''}`;
     }
 
     async function showEntityDetail(entityId) {
@@ -458,30 +631,58 @@
       const content = document.getElementById('graph-detail-content');
       panel.classList.remove('hidden');
 
-      const [rels, facts] = await Promise.all([
+      const [rels, facts, activity] = await Promise.all([
         api(`/api/graph/relationships?entityId=${encodeURIComponent(entityId)}`),
         api(`/api/graph/facts?entityId=${encodeURIComponent(entityId)}&limit=10`),
+        api(`/api/graph/temporal?type=activity&entityId=${encodeURIComponent(entityId)}&granularity=month`).catch(() => []),
       ]);
 
-      const entity = graphData.nodes.find(n => n.id === entityId);
+      const entity = graphData?.nodes?.find(n => n.id === entityId);
+
+      // Activity sparkline (simple bar chart)
+      const activityData = Array.isArray(activity) ? activity.slice(-12) : [];
+      const maxAct = Math.max(1, ...activityData.map(a => a.mentionCount + a.newRelationships));
+      const sparkBars = activityData.map(a => {
+        const h = Math.max(2, ((a.mentionCount + a.newRelationships) / maxAct) * 24);
+        return `<div title="${a.period}: ${a.mentionCount}m, ${a.newRelationships}r" style="width:6px;height:${h}px;background:#3b82f6;border-radius:1px;"></div>`;
+      }).join('');
+
+      const relList = (Array.isArray(rels) ? rels : []);
+      const sortedRels = relList.sort((a, b) => (b.weight || 0) - (a.weight || 0));
+
       content.innerHTML = `
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-bold text-sm">${esc(entity?.label || entityId)}</h3>
-          <button onclick="document.getElementById('graph-detail').classList.add('hidden')" class="text-zinc-500 hover:text-white text-lg">&times;</button>
+          <div class="flex gap-1">
+            <button onclick="loadEgoGraph('${esc(entityId)}')" title="Ego graph" class="text-zinc-500 hover:text-accent text-xs px-1">◎</button>
+            <button onclick="document.getElementById('graph-detail').classList.add('hidden')" class="text-zinc-500 hover:text-white text-lg">&times;</button>
+          </div>
         </div>
         <span class="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded">${esc(entity?.group || '')}</span>
 
-        <h4 class="text-xs font-semibold text-zinc-500 mt-4 mb-2">Relationships (${Array.isArray(rels) ? rels.length : 0})</h4>
-        <div class="space-y-1">
-          ${(Array.isArray(rels) ? rels : []).slice(0, 20).map(r => {
+        ${activityData.length > 0 ? `
+          <h4 class="text-xs font-semibold text-zinc-500 mt-4 mb-1">Activity (${activityData.length}mo)</h4>
+          <div style="display:flex;align-items:end;gap:2px;height:28px;">${sparkBars}</div>
+        ` : ''}
+
+        <h4 class="text-xs font-semibold text-zinc-500 mt-4 mb-2">Relationships (${sortedRels.length})</h4>
+        <div class="space-y-1 max-h-60 overflow-auto">
+          ${sortedRels.slice(0, 30).map(r => {
             const other = r.sourceId === entityId ? r.targetId : r.sourceId;
             const dir = r.sourceId === entityId ? '→' : '←';
-            return `<div class="text-xs text-zinc-400 bg-zinc-900 rounded px-2 py-1">${dir} <span class="text-accent cursor-pointer" onclick="showEntityDetail('${esc(other)}')">${esc(other)}</span> <span class="text-zinc-600">(${esc(r.type)})</span></div>`;
+            const w = r.weight ? r.weight.toFixed(2) : '?';
+            const seen = r.seenCount ?? 1;
+            return `<div class="text-xs text-zinc-400 bg-zinc-900 rounded px-2 py-1 flex items-center gap-1">
+              <span>${dir}</span>
+              <span class="text-accent cursor-pointer flex-1 truncate" onclick="showEntityDetail('${esc(other)}')">${esc(other)}</span>
+              <span class="text-zinc-600 shrink-0">${esc(r.type)}</span>
+              <span class="text-zinc-700 shrink-0 text-[10px]">${w} (${seen}×)</span>
+            </div>`;
           }).join('')}
         </div>
 
         <h4 class="text-xs font-semibold text-zinc-500 mt-4 mb-2">Facts (${Array.isArray(facts) ? facts.length : 0})</h4>
-        <div class="space-y-1">
+        <div class="space-y-1 max-h-40 overflow-auto">
           ${(Array.isArray(facts) ? facts : []).map(f => `
             <div class="text-xs text-zinc-400 bg-zinc-900 rounded px-2 py-1">
               <span class="text-zinc-600">${f.recordedAt || ''}</span> ${esc(f.content.slice(0, 100))}
@@ -639,7 +840,178 @@
       if (e.key === 'Escape' && !cmdPalette.classList.contains('hidden')) {
         closeCmd();
       }
+      // ? key opens onboarding
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+        e.preventDefault();
+        startOnboarding();
+      }
     });
+
+    // ─── Onboarding Guide ─────────────────────────────────────
+    const ONBOARD_STEPS = [
+      {
+        title: 'Engram Vault Explorer에 온 걸 환영해',
+        body: '네 Obsidian 볼트의 지식 그래프를 탐색하는 대시보드야. 5개 탭으로 구성되어 있어.<br><br>이 가이드에서 각 탭의 핵심 사용법을 알려줄게.',
+        target: null,
+        position: 'center',
+      },
+      {
+        title: '◫ Dashboard — 볼트 현황',
+        body: '파일, 임베딩, 엔티티, 관계, 팩트 수가 한눈에 보여. 디렉토리 분포와 엔티티 타입 비율도 확인 가능.',
+        target: '[data-tab="dashboard"]',
+        position: 'right',
+      },
+      {
+        title: '⌕ Keyword Search — FTS5 검색',
+        body: '정확한 키워드로 노트를 찾을 때. 디렉토리 필터로 범위를 좁힐 수 있어.<br><br><b>팁:</b> "클립홈 AND 성과" 같은 Boolean 검색도 됨.',
+        target: '[data-tab="keyword"]',
+        position: 'right',
+      },
+      {
+        title: '◉ Semantic Search — 의미 검색',
+        body: '자연어로 질문하면 의미적으로 유사한 노트를 찾아줘. "팀 성과를 개선하는 방법" 같은 문장형 쿼리에 적합.<br><br><b>전제:</b> Ollama 임베딩이 생성되어 있어야 함.',
+        target: '[data-tab="semantic"]',
+        position: 'right',
+      },
+      {
+        title: '⬡ Graph — 지식 그래프 (핵심!)',
+        body: '네 볼트의 인물/조직/프로젝트 관계를 시각화한 그래프야. 여기가 가장 강력해.',
+        target: '[data-tab="graph"]',
+        position: 'right',
+        action: () => document.querySelector('[data-tab="graph"]').click(),
+      },
+      {
+        title: 'Graph: 필터 & 검색',
+        body: '<b>타입 필터:</b> person, organization 등 원하는 엔티티만<br><b>관계 필터:</b> co-mentioned, belongs-to 등<br><b>검색:</b> 이름 입력하면 해당 노드로 이동+하이라이트<br><b>색상 모드:</b> Type(타입별) / Community(클러스터별) 전환',
+        target: '#graph-type-filter',
+        position: 'below',
+      },
+      {
+        title: 'Graph: 노드 인터랙션',
+        body: '<b>클릭:</b> 노드 상세 패널 (관계, 팩트, 활동 스파크라인)<br><b>더블클릭:</b> 에고 그래프 — 그 사람 중심 2-hop만 보기<br><b>에고 모드 탈출:</b> 우상단 "Exit Ego" 버튼',
+        target: '#graph-container',
+        position: 'center',
+      },
+      {
+        title: 'Graph: 경로 탐색 (Path Finder)',
+        body: '하단 <span class="shortcut">Path</span> 버튼 클릭 → From/To에 엔티티 ID 입력 → "A와 B는 어떻게 연결돼 있나?" 경로가 주황색으로 하이라이트됨.<br><br><b>팁:</b> 1on1 전에 상대방과 나의 연결 경로 확인하기 좋음.',
+        target: '#graph-path-toggle',
+        position: 'above',
+      },
+      {
+        title: 'Graph: 엣지 두께',
+        body: '하단 <b>Edge width</b>를 "By Weight"로 설정하면 자주 함께 언급된 관계가 굵게 보여. 관계 강도가 직관적으로 드러남.',
+        target: '#graph-edge-mode',
+        position: 'above',
+      },
+      {
+        title: '⊞ DB Explorer — 로우 데이터',
+        body: 'SQLite 테이블을 직접 탐색. 왼쪽에서 테이블 선택 → 정렬/페이지네이션으로 데이터 확인.<br><br>디버깅이나 데이터 검증에 유용.',
+        target: '[data-tab="db-explorer"]',
+        position: 'right',
+      },
+      {
+        title: '키보드 단축키',
+        body: '<span class="shortcut">⌘K</span> 커맨드 팔레트 (탭 빠른 이동)<br><span class="shortcut">?</span> 이 가이드 다시 열기<br><br>MCP 도구도 활용해봐:<br>• <code>vault_graph_analysis</code> — 중요도/커뮤니티 분석<br>• <code>vault_graph_path</code> — 경로 탐색<br>• <code>vault_graph_suggest</code> — 관계 추천<br>• <code>vault_graph_temporal</code> — 트렌드 분석',
+        target: null,
+        position: 'center',
+      },
+    ];
+
+    let onboardStep = 0;
+    let onboardActive = false;
+
+    function startOnboarding() {
+      onboardStep = 0;
+      onboardActive = true;
+      showOnboardStep();
+    }
+
+    function stopOnboarding() {
+      onboardActive = false;
+      document.querySelectorAll('.onboard-backdrop, .onboard-card, .onboard-highlight').forEach(el => el.remove());
+      localStorage.setItem('engram-onboard-seen', '1');
+    }
+
+    function showOnboardStep() {
+      // Clean previous
+      document.querySelectorAll('.onboard-backdrop, .onboard-card, .onboard-highlight').forEach(el => el.remove());
+      if (!onboardActive || onboardStep >= ONBOARD_STEPS.length) { stopOnboarding(); return; }
+
+      const step = ONBOARD_STEPS[onboardStep];
+      if (step.action) step.action();
+
+      // Backdrop
+      const backdrop = document.createElement('div');
+      backdrop.className = 'onboard-backdrop';
+      backdrop.addEventListener('click', stopOnboarding);
+      document.body.appendChild(backdrop);
+
+      // Highlight target
+      let targetRect = null;
+      if (step.target) {
+        const targetEl = document.querySelector(step.target);
+        if (targetEl) {
+          targetRect = targetEl.getBoundingClientRect();
+          const hl = document.createElement('div');
+          hl.className = 'onboard-highlight';
+          hl.style.left = (targetRect.left - 4) + 'px';
+          hl.style.top = (targetRect.top - 4) + 'px';
+          hl.style.width = (targetRect.width + 8) + 'px';
+          hl.style.height = (targetRect.height + 8) + 'px';
+          document.body.appendChild(hl);
+        }
+      }
+
+      // Card
+      const card = document.createElement('div');
+      card.className = 'onboard-card';
+      const dots = ONBOARD_STEPS.map((_, i) => `<div class="onboard-dot ${i === onboardStep ? 'active' : ''}"></div>`).join('');
+      card.innerHTML = `
+        <span class="step-badge">${onboardStep + 1} / ${ONBOARD_STEPS.length}</span>
+        <h3>${step.title}</h3>
+        <p>${step.body}</p>
+        <div class="onboard-dots">${dots}</div>
+        <div class="onboard-btns">
+          <button class="btn-skip" onclick="stopOnboarding()">닫기</button>
+          <button class="btn-next" onclick="onboardStep++; showOnboardStep();">${onboardStep < ONBOARD_STEPS.length - 1 ? '다음' : '완료'}</button>
+        </div>
+      `;
+
+      // Position card
+      if (step.position === 'center' || !targetRect) {
+        card.style.top = '50%';
+        card.style.left = '50%';
+        card.style.transform = 'translate(-50%, -50%)';
+      } else if (step.position === 'right') {
+        card.style.top = Math.max(10, targetRect.top - 10) + 'px';
+        card.style.left = (targetRect.right + 16) + 'px';
+      } else if (step.position === 'below') {
+        card.style.top = (targetRect.bottom + 12) + 'px';
+        card.style.left = Math.max(10, targetRect.left) + 'px';
+      } else if (step.position === 'above') {
+        card.style.bottom = (window.innerHeight - targetRect.top + 12) + 'px';
+        card.style.left = Math.max(10, targetRect.left) + 'px';
+      }
+
+      document.body.appendChild(card);
+
+      // Escape to close
+      const escHandler = (e) => {
+        if (e.key === 'Escape') { stopOnboarding(); document.removeEventListener('keydown', escHandler); }
+        if (e.key === 'ArrowRight' || e.key === 'Enter') { onboardStep++; showOnboardStep(); document.removeEventListener('keydown', escHandler); }
+        if (e.key === 'ArrowLeft' && onboardStep > 0) { onboardStep--; showOnboardStep(); document.removeEventListener('keydown', escHandler); }
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+
+    // Help button
+    document.getElementById('help-btn').addEventListener('click', startOnboarding);
+
+    // Auto-show on first visit
+    if (!localStorage.getItem('engram-onboard-seen')) {
+      setTimeout(startOnboarding, 800);
+    }
   </script>
 </body>
 </html>

@@ -42,6 +42,9 @@ export interface Entity {
   aliases: string[];
   metadata: Record<string, unknown>;
   sourcePath: string | null;
+  firstSeen: string | null;
+  lastSeen: string | null;
+  mentionCount: number;
 }
 
 export interface Relationship {
@@ -53,6 +56,20 @@ export interface Relationship {
   validFrom: string | null;
   validUntil: string | null;
   sourceFile: string | null;
+  weight: number;
+  confidence: number;
+  extractionMethod: string;
+  lastSeen: string | null;
+  seenCount: number;
+}
+
+export interface RelationshipEvidence {
+  id: number;
+  relationshipId: number;
+  sourceFile: string;
+  context: string | null;
+  extractedAt: string | null;
+  extractionMethod: string;
 }
 
 export interface Fact {

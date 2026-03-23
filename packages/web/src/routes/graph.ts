@@ -50,6 +50,10 @@ export function handleGraphFull(ctx: RouteContext) {
     team: '#a855f7',
     topic: '#eab308',
     event: '#ec4899',
+    concept: '#06b6d4',
+    technology: '#14b8a6',
+    tool: '#f43f5e',
+    decision: '#8b5cf6',
   };
 
   const nodes = nodeList.map(e => ({
@@ -57,7 +61,8 @@ export function handleGraphFull(ctx: RouteContext) {
     label: e.name,
     group: e.type,
     color: TYPE_COLORS[e.type] ?? '#6b7280',
-    title: `${e.name} (${e.type})`,
+    title: `${e.name} (${e.type})` + (e.mentionCount > 0 ? ` — ${e.mentionCount} mentions` : ''),
+    size: Math.max(8, Math.min(25, 8 + Math.log2((e.mentionCount || 0) + 1) * 3)),
   }));
 
   const edgesOut = edges.map(r => ({
@@ -65,6 +70,8 @@ export function handleGraphFull(ctx: RouteContext) {
     to: r.targetId,
     label: r.type,
     id: r.id,
+    value: r.weight,
+    title: `${r.type} (weight: ${r.weight.toFixed(2)}, seen: ${r.seenCount}×)`,
   }));
 
   return { nodes, edges: edgesOut };

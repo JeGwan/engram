@@ -1,6 +1,6 @@
 import type { IDatabase, IVaultReader } from '../db/interface.js';
 import type { Entity, ExtractionResult } from '../types.js';
-import { upsertEntity, getAllEntities, findEntityByName } from './entity-store.js';
+import { upsertEntity, getAllEntities, findEntityByName, recordEntityMention } from './entity-store.js';
 import { addRelationship } from './relationship-store.js';
 import { addFact } from './fact-store.js';
 
@@ -165,9 +165,14 @@ export function runExtraction(
       }
     }
 
-    // Create mention fact
+    // Record entity mentions (temporal tracking)
     if (unique.length > 0) {
       const recordedAt = extractDate(file.path, file.modified_at);
+      for (const entity of unique) {
+        recordEntityMention(db, entity.id, recordedAt);
+      }
+
+      // Create mention fact
       const title = basename(file.path);
       addFact(db, {
         type: 'mention',

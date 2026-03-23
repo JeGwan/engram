@@ -164,6 +164,41 @@ export function initSchema(db: IDatabase): void {
     `);
     setSchemaVersion(db, 6);
   }
+
+  if (version < 7) {
+    db.execMulti(`
+      -- Relationship enrichment
+      ALTER TABLE relationships ADD COLUMN weight REAL DEFAULT 1.0;
+      ALTER TABLE relationships ADD COLUMN confidence REAL DEFAULT 1.0;
+      ALTER TABLE relationships ADD COLUMN extraction_method TEXT DEFAULT 'rule';
+      ALTER TABLE relationships ADD COLUMN last_seen TEXT;
+      ALTER TABLE relationships ADD COLUMN seen_count INTEGER DEFAULT 1;
+
+      -- Entity enrichment
+      ALTER TABLE entities ADD COLUMN first_seen TEXT;
+      ALTER TABLE entities ADD COLUMN last_seen TEXT;
+      ALTER TABLE entities ADD COLUMN mention_count INTEGER DEFAULT 0;
+
+      -- Evidence table: 1 relationship → N evidence sources
+      CREATE TABLE IF NOT EXISTS relationship_evidence (
+        id INTEGER PRIMARY KEY,
+        relationship_id INTEGER NOT NULL REFERENCES relationships(id) ON DELETE CASCADE,
+        source_file TEXT NOT NULL,
+        context TEXT,
+        extracted_at TEXT,
+        extraction_method TEXT DEFAULT 'rule'
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_rel_evidence_rel ON relationship_evidence(relationship_id);
+      CREATE INDEX IF NOT EXISTS idx_rel_evidence_file ON relationship_evidence(source_file);
+    `);
+    setSchemaVersion(db, 7);
+  }
+
+  if (version < 8) {
+    db.execMulti(`ALTER TABLE files ADD COLUMN llm_extracted_at INTEGER`);
+    setSchemaVersion(db, 8);
+  }
 }
 
 function getSchemaVersion(db: IDatabase): number {
