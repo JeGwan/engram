@@ -28,7 +28,9 @@ import {
   queryFacts,
   runExtraction,
   getVaultStats,
+  hybridSearch as hybridSearchCore,
 } from '@engram/core';
+import type { HybridResult, HybridFilterOptions } from '@engram/core';
 
 export interface EngramSettings {
   ollamaUrl: string;
@@ -212,6 +214,17 @@ export class EngramEngine {
         chunkText: chunk?.chunk_text ?? '',
       };
     });
+  }
+
+  async hybridSearch(query: string, topK = 10, options: HybridFilterOptions = {}): Promise<HybridResult[]> {
+    if (this.vectors.length === 0) {
+      throw new Error('No vectors loaded. Run embedding first, then load vectors.');
+    }
+    if (!await this.isOllamaAvailable()) {
+      throw new Error('Ollama is not running. Start Ollama to use hybrid search.');
+    }
+    const queryVec = await embed(query, this.settings.ollamaUrl, this.settings.ollamaModel);
+    return hybridSearchCore(this.db, this.vectors, queryVec, query, topK, 60, options);
   }
 
   async isOllamaAvailable(): Promise<boolean> {

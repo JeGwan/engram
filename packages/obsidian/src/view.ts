@@ -3,6 +3,7 @@ import type EngramPlugin from './main';
 import { DashboardRenderer } from './ui/dashboard';
 import { KeywordSearchRenderer } from './ui/keyword-search';
 import { SemanticSearchRenderer } from './ui/semantic-search';
+import { HybridSearchRenderer } from './ui/hybrid-search';
 import { GraphViewRenderer } from './ui/graph-view';
 import { DbExplorerRenderer } from './ui/db-explorer';
 import { CommandPalette } from './ui/command-palette';
@@ -11,7 +12,7 @@ import type { BaseRenderer } from './ui/base-renderer';
 
 export const VIEW_TYPE_ENGRAM = 'engram-view';
 
-type TabId = 'dashboard' | 'keyword' | 'semantic' | 'graph' | 'db-explorer';
+type TabId = 'dashboard' | 'keyword' | 'semantic' | 'hybrid' | 'graph' | 'db-explorer';
 
 interface TabDef {
   id: TabId;
@@ -23,6 +24,7 @@ const TABS: TabDef[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
   { id: 'keyword', label: 'Keyword', icon: '🔍' },
   { id: 'semantic', label: 'Semantic', icon: '🧠' },
+  { id: 'hybrid', label: 'Hybrid', icon: '⚡' },
   { id: 'graph', label: 'Graph', icon: '🕸' },
   { id: 'db-explorer', label: 'DB Explorer', icon: '🗄' },
 ];
@@ -132,6 +134,9 @@ export class EngramView extends ItemView {
       case 'semantic':
         this.currentRenderer = new SemanticSearchRenderer(engine, this.app);
         break;
+      case 'hybrid':
+        this.currentRenderer = new HybridSearchRenderer(engine, this.app);
+        break;
       case 'graph':
         this.currentRenderer = new GraphViewRenderer(engine);
         break;
@@ -158,6 +163,7 @@ export class EngramView extends ItemView {
       { id: 'dashboard', name: 'Go to Dashboard', icon: '📊', callback: () => this.switchTab('dashboard') },
       { id: 'keyword', name: 'Keyword Search', icon: '🔍', callback: () => this.switchTab('keyword') },
       { id: 'semantic', name: 'Semantic Search', icon: '🧠', callback: () => this.switchTab('semantic') },
+      { id: 'hybrid', name: 'Hybrid Search', icon: '⚡', callback: () => this.switchTab('hybrid') },
       { id: 'graph', name: 'Knowledge Graph', icon: '🕸', callback: () => this.switchTab('graph') },
       { id: 'db-explorer', name: 'DB Explorer', icon: '🗄', callback: () => this.switchTab('db-explorer') },
       {
