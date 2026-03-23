@@ -40,6 +40,10 @@ export interface EngramSettings {
   graphExtractionEnabled: boolean;
   skipDirectories: string[];
   peopleDir: string;
+  /** 'auto' = threshold 기반, 'always' = 항상 로드, 'never' = 수동만 */
+  vectorLoadMode: 'auto' | 'always' | 'never';
+  /** auto 모드에서 자동 로드할 최대 크기 (MB) */
+  vectorAutoLoadThresholdMB: number;
 }
 
 export const DEFAULT_SETTINGS: EngramSettings = {
@@ -50,6 +54,8 @@ export const DEFAULT_SETTINGS: EngramSettings = {
   graphExtractionEnabled: false,
   skipDirectories: ['node_modules', '.git'],
   peopleDir: '',
+  vectorLoadMode: 'auto',
+  vectorAutoLoadThresholdMB: 100,
 };
 
 /**
@@ -238,6 +244,25 @@ export class EngramEngine {
 
   getVectorCount(): number {
     return this.vectors.length;
+  }
+
+  /** DB에 저장된 embedding 데이터의 총 바이트 수 */
+  getVectorDataSizeBytes(): number {
+    const row = this.db.queryOne<{ total: number }>(
+      'SELECT SUM(LENGTH(embedding)) as total FROM embeddings WHERE embedding IS NOT NULL',
+    );
+    return row?.total ?? 0;
+  }
+
+  /** 벡터를 자동 로드해야 하는지 판단 */
+  shouldAutoLoadVectors(): boolean {
+    const mode = this.settings.vectorLoadMode;
+    if (mode === 'always') return true;
+    if (mode === 'never') return false;
+    // auto: threshold 체크
+    const sizeBytes = this.getVectorDataSizeBytes();
+    const thresholdBytes = this.settings.vectorAutoLoadThresholdMB * 1024 * 1024;
+    return sizeBytes <= thresholdBytes;
   }
 
   async runEmbedding(force = false, onProgress?: (pct: number, msg: string) => void): Promise<EmbedResult> {

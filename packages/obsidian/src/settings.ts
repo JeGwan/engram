@@ -84,6 +84,37 @@ export class EngramSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl)
+      .setName('Vector loading mode')
+      .setDesc('Controls when embedding vectors are loaded into memory at startup')
+      .addDropdown(dropdown =>
+        dropdown
+          .addOption('auto', 'Auto (threshold-based)')
+          .addOption('always', 'Always load')
+          .addOption('never', 'Manual only')
+          .setValue(this.plugin.settings.vectorLoadMode)
+          .onChange(async (value) => {
+            this.plugin.settings.vectorLoadMode = value as 'auto' | 'always' | 'never';
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Auto-load threshold (MB)')
+      .setDesc('In auto mode, vectors are loaded at startup only if total size is below this threshold')
+      .addText(text =>
+        text
+          .setPlaceholder('100')
+          .setValue(String(this.plugin.settings.vectorAutoLoadThresholdMB))
+          .onChange(async (value) => {
+            const num = parseInt(value, 10);
+            if (!isNaN(num) && num > 0) {
+              this.plugin.settings.vectorAutoLoadThresholdMB = num;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
+
     // ── Graph ──
     containerEl.createEl('h3', { text: 'Knowledge Graph' });
 

@@ -162,7 +162,7 @@ export default class EngramPlugin extends Plugin {
       }
 
       // Load vector cache if embeddings enabled
-      if (this.settings.embeddingEnabled) {
+      if (this.settings.embeddingEnabled && this.engine.shouldAutoLoadVectors()) {
         this.engine.loadVectorCache();
       }
 
