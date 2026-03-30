@@ -1,20 +1,19 @@
 import type { IDatabase } from '../db/interface.js';
 import type { EmbedResult } from '../types.js';
-import { embed, isOllamaRunning } from './ollama-client.js';
+import type { IEmbedder } from './embedder.js';
 import { chunkMarkdown } from './chunker.js';
 import { storeEmbedding, loadVectors, type VectorEntry } from './vector-store.js';
 
 export async function runEmbedIndex(
   db: IDatabase,
-  ollamaUrl: string,
-  ollamaModel: string,
+  embedder: IEmbedder,
   force = false,
   onProgress?: (pct: number, msg: string) => void,
 ): Promise<{ result: EmbedResult; vectors: VectorEntry[] }> {
   const start = Date.now();
 
-  if (!(await isOllamaRunning(ollamaUrl))) {
-    throw new Error('Ollama is not running. Start with: brew services start ollama');
+  if (!(await embedder.isReady())) {
+    throw new Error('Embedding backend is not ready.');
   }
 
   // Get files to embed
@@ -47,7 +46,7 @@ export async function runEmbedIndex(
       }
 
       for (const chunk of chunks) {
-        const vector = await embed(chunk.text, ollamaUrl, ollamaModel);
+        const vector = await embedder.embed(chunk.text);
         storeEmbedding(db, file.id, chunk.index, chunk.text, chunk.heading, vector);
       }
 

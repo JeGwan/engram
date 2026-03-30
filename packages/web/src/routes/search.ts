@@ -1,4 +1,4 @@
-import { embed, isOllamaRunning, searchVectors } from '@engram/core';
+import { searchVectors } from '@engram/core';
 import type { RouteContext } from '../server.js';
 
 export function handleSearch(ctx: RouteContext) {
@@ -38,17 +38,17 @@ export async function handleSemanticSearch(ctx: RouteContext) {
   const q = ctx.url.searchParams.get('q');
   if (!q) return { error: 'Missing q parameter', results: [] };
 
-  const running = await isOllamaRunning(ctx.ollamaUrl);
-  if (!running) {
-    return { error: 'Ollama is not running. Start it with: ollama serve', results: [] };
+  const ready = await ctx.embedder.isReady();
+  if (!ready) {
+    return { error: 'Embedding model is not ready.', results: [] };
   }
 
   const limit = parseInt(ctx.url.searchParams.get('limit') ?? '10', 10);
 
-  const queryVec = await embed(q, ctx.ollamaUrl, ctx.ollamaModel);
+  const queryVec = await ctx.embedder.embed(q);
   const vectorResults = searchVectors(ctx.vectors, queryVec, limit);
 
-  const results = vectorResults.map(v => {
+  const results = vectorResults.map((v: { id: number; fileId: number; chunkIndex: number; heading: string; score: number }) => {
     const file = ctx.db.queryOne<{ path: string; title: string }>(
       'SELECT path, title FROM files WHERE id = ?',
       [v.fileId],

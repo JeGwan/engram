@@ -4,25 +4,26 @@ import { initSchema, loadVectors, seedEntities, runExtraction } from '@engram/co
 import { getConfig } from './config.js';
 import { BetterSqlite3Adapter } from './adapters/better-sqlite3-adapter.js';
 import { NodeVaultReader } from './adapters/node-vault-reader.js';
+import { LlamaEmbedder } from './adapters/llama-embedder.js';
 import { registerAllTools, type McpContext } from './tools/register-all.js';
 
 const config = getConfig();
 
 const db = new BetterSqlite3Adapter(config.dbPath);
 const vault = new NodeVaultReader(config.vaultRoot);
+const embedder = new LlamaEmbedder(config.embedModelPath);
 
 const server = new McpServer(
-  { name: 'engram', version: '1.0.0' },
+  { name: 'engram', version: '1.1.0' },
   { capabilities: { tools: {} } },
 );
 
 const ctx: McpContext = {
   db,
   vault,
+  embedder,
   vaultRoot: config.vaultRoot,
   skipDirs: config.skipDirs,
-  ollamaUrl: config.ollamaUrl,
-  ollamaModel: config.ollamaModel,
   peopleDir: config.peopleDir,
   vectors: [],
 };
@@ -35,8 +36,6 @@ async function main() {
 
   // Startup incremental indexing
   console.error(`Indexing vault: ${config.vaultRoot}`);
-  const { runFullIndex } = await import('./tools/register-all.js') as any;
-  // Inline index logic since runFullIndex is not exported
   const scanned = vault.scanMarkdownFiles(config.skipDirs);
   const existingMap = new Map(
     db.queryAll<{ path: string; modified_at: number }>('SELECT path, modified_at FROM files')

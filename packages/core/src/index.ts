@@ -30,8 +30,8 @@ export { initSchema } from './db/schema.js';
 export { indexFiles, removeFile, renameFile, deleteStaleFiles } from './indexer/indexer.js';
 
 // ─── Embeddings ───
+export type { IEmbedder } from './embeddings/embedder.js';
 export { chunkMarkdown } from './embeddings/chunker.js';
-export { embed, isOllamaRunning } from './embeddings/ollama-client.js';
 export {
   loadVectors,
   searchVectors,

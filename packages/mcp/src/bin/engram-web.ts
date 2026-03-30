@@ -4,6 +4,7 @@ import { startWebServer, type WebServerDeps } from '@engram/web';
 import { getConfig } from '../config.js';
 import { BetterSqlite3Adapter } from '../adapters/better-sqlite3-adapter.js';
 import { NodeVaultReader } from '../adapters/node-vault-reader.js';
+import { LlamaEmbedder } from '../adapters/llama-embedder.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -65,7 +66,8 @@ async function main() {
     console.log(`Vectors: ${vectors.length} loaded`);
   }
 
-  const deps: WebServerDeps = { db, vectors, ollamaUrl: config.ollamaUrl, ollamaModel: config.ollamaModel };
+  const embedder = new LlamaEmbedder(config.embedModelPath);
+  const deps: WebServerDeps = { db, vectors, embedder };
   const url = await startWebServer(deps, port);
   console.log(`\n${url}`);
 }

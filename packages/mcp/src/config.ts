@@ -5,8 +5,7 @@ export interface EngramConfig {
   vaultRoot: string;
   dbPath: string;
   skipDirs: Set<string>;
-  ollamaUrl: string;
-  ollamaModel: string;
+  embedModelPath: string;
   peopleDir: string | null;
 }
 
@@ -34,10 +33,15 @@ export function getConfig(): EngramConfig {
   const skipDirsRaw = process.env.ENGRAM_SKIP_DIRS ?? 'node_modules,.git,.obsidian,.trash';
   const skipDirs = new Set(skipDirsRaw.split(',').map(s => s.trim()).filter(Boolean));
 
-  const ollamaUrl = process.env.ENGRAM_OLLAMA_URL ?? 'http://localhost:11434';
-  const ollamaModel = process.env.ENGRAM_OLLAMA_MODEL ?? 'bge-m3';
+  // Model path: defaults to ~/.engram/models/bge-m3-Q8_0.gguf
+  const defaultModelPath = path.join(
+    process.env.HOME ?? '/tmp',
+    '.engram', 'models', 'bge-m3-Q8_0.gguf',
+  );
+  const embedModelPath = process.env.ENGRAM_EMBED_MODEL ?? defaultModelPath;
+
   const peopleDir = process.env.ENGRAM_PEOPLE_DIR ?? null;
 
-  config = { vaultRoot, dbPath, skipDirs, ollamaUrl, ollamaModel, peopleDir };
+  config = { vaultRoot, dbPath, skipDirs, embedModelPath, peopleDir };
   return config;
 }

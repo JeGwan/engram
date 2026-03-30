@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   type IDatabase,
   type IVaultReader,
+  type IEmbedder,
   type VectorEntry,
   getVaultStats,
   searchEntities,
@@ -11,7 +12,6 @@ import {
   getRelationships,
   queryFacts,
   findSimilarByFile,
-  embed,
   searchVectors,
   hybridSearch,
   seedEntities,
@@ -33,10 +33,9 @@ import { startWebServer, stopWebServer, isWebRunning, getWebUrl, type WebServerD
 export interface McpContext {
   db: IDatabase;
   vault: IVaultReader;
+  embedder: IEmbedder;
   vaultRoot: string;
   skipDirs: Set<string>;
-  ollamaUrl: string;
-  ollamaModel: string;
   peopleDir: string | null;
   vectors: VectorEntry[];
 }
@@ -105,7 +104,7 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
       const text = rows.length === 0
         ? `'${title}'을 참조하는 노트 없음`
         : `**${title}** 백링크 (${rows.length}개):\n` +
-          rows.map(r => `- ${r.title} (${r.path})`).join('\n');
+          rows.map((r: { title: string; path: string }) => `- ${r.title} (${r.path})`).join('\n');
       return { content: [{ type: 'text' as const, text }] };
     },
   );
@@ -116,7 +115,7 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
     {},
     async () => {
       const stats = getVaultStats(ctx.db);
-      const dirList = stats.directories.map(d => `  ${d.name || '(root)'}: ${d.count}`).join('\n');
+      const dirList = stats.directories.map((d: { name: string; count: number }) => `  ${d.name || '(root)'}: ${d.count}`).join('\n');
       const text = [
         `**볼트 인덱스 통계**`,
         `총 파일: ${stats.files}`,
@@ -134,13 +133,13 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
 
   server.tool(
     'vault_embed',
-    '임베딩 생성 (증분 또는 전체). Ollama bge-m3 필요.',
+    '임베딩 생성 (증분 또는 전체). 로컬 GGUF 모델 사용.',
     {
       force: z.boolean().optional().describe('true면 전체 재생성 (기본: 증분)'),
     },
     async ({ force }) => {
       const { result, vectors } = await runEmbedIndex(
-        ctx.db, ctx.ollamaUrl, ctx.ollamaModel, force ?? false,
+        ctx.db, ctx.embedder, force ?? false,
       );
       ctx.vectors = vectors;
       const text = `임베딩 완료: ${result.embedded} embedded, ${result.skipped} skipped, ${result.errors} errors (${result.durationMs}ms)`;
@@ -150,20 +149,20 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
 
   server.tool(
     'vault_semantic_search',
-    '의미 기반 유사도 검색 (Ollama bge-m3 임베딩)',
+    '의미 기반 유사도 검색 (로컬 GGUF 임베딩)',
     {
       query: z.string().describe('검색 질의 (자연어)'),
       limit: z.number().optional().describe('결과 수 (기본 10)'),
     },
     async ({ query, limit }) => {
-      const queryVec = await embed(query, ctx.ollamaUrl, ctx.ollamaModel);
+      const queryVec = await ctx.embedder.embed(query);
       const results = searchVectors(ctx.vectors, queryVec, limit ?? 10);
 
       if (results.length === 0) {
         return { content: [{ type: 'text' as const, text: '시맨틱 검색 결과 없음. vault_embed을 먼저 실행하세요.' }] };
       }
 
-      const lines = results.map((r, i) => {
+      const lines = results.map((r: { id: number; fileId: number; heading: string; score: number }, i: number) => {
         const file = ctx.db.queryOne<{ path: string; title: string }>(
           'SELECT path, title FROM files WHERE id = ?', [r.fileId],
         );
@@ -198,7 +197,7 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
       if (ctx.vectors.length === 0) {
         return { content: [{ type: 'text' as const, text: '임베딩 없음. vault_embed 먼저 실행하세요.' }] };
       }
-      const queryVec = await embed(query, ctx.ollamaUrl, ctx.ollamaModel);
+      const queryVec = await ctx.embedder.embed(query);
       const filterOptions = {
         directory: directory || undefined,
         tag: tag || undefined,
@@ -236,7 +235,7 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
       if (results.length === 0) {
         return { content: [{ type: 'text' as const, text: `'${filePath}' 유사 노트 없음` }] };
       }
-      const lines = results.map((r, i) => {
+      const lines = results.map((r: { title: string; score: number; path: string }, i: number) => {
         const score = (r.score * 100).toFixed(1);
         return `${i + 1}. **${r.title}** (${score}%) — ${r.path}`;
       });
@@ -320,7 +319,7 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
       if (facts.length === 0) {
         return { content: [{ type: 'text' as const, text: '타임라인 결과 없음' }] };
       }
-      const lines = facts.map(f => {
+      const lines = facts.map((f: { recordedAt: string | null; entityIds: string[]; content: string; type: string }) => {
         const date = f.recordedAt ?? '?';
         const entities = f.entityIds.join(', ');
         return `- [${date}] ${f.content} {${f.type}} — entities: ${entities}`;
@@ -332,15 +331,16 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
 
   server.tool(
     'vault_extract_entities',
-    'Extract entities and relationships from vault. method=rule (default): wiki-links, frontmatter, co-mentions. method=llm: Ollama LLM deep extraction. seed=true: seed from people dir.',
+    'Extract entities and relationships from vault. method=rule (default): wiki-links, frontmatter, co-mentions. method=llm: Ollama LLM deep extraction (requires running Ollama). seed=true: seed from people dir.',
     {
       seed: z.boolean().optional().describe('true = seed mode (default: false, extraction mode)'),
       force: z.boolean().optional().describe('Force re-extraction of all files (ignore incremental tracking)'),
       limit: z.coerce.number().optional().describe('Limit number of notes to process'),
       method: z.enum(['rule', 'llm']).optional().describe('Extraction method: rule (default) or llm (Ollama)'),
       model: z.string().optional().describe('Ollama model for LLM extraction (default: llama3.2)'),
+      ollamaUrl: z.string().optional().describe('Ollama URL for LLM extraction (default: http://localhost:11434)'),
     },
-    async ({ seed, force, limit, method, model }) => {
+    async ({ seed, force, limit, method, model, ollamaUrl: ollamaUrlParam }) => {
       if (seed) {
         const result = await seedEntities(ctx.db, ctx.vault, ctx.peopleDir);
         const total = getAllEntities(ctx.db).length;
@@ -351,7 +351,8 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
       if (method === 'llm') {
         const { runLlmExtraction } = await import('@engram/core');
         const llmModel = model ?? 'llama3.2';
-        const result = await runLlmExtraction(ctx.db, ctx.ollamaUrl, llmModel, { force, limit });
+        const ollamaUrl = ollamaUrlParam ?? 'http://localhost:11434';
+        const result = await runLlmExtraction(ctx.db, ollamaUrl, llmModel, { force, limit });
         const totalEntities = getAllEntities(ctx.db).length;
         const totalRels = ctx.db.queryOne<{ c: number }>('SELECT COUNT(*) as c FROM relationships')?.c ?? 0;
 
@@ -690,8 +691,7 @@ export function registerAllTools(server: McpServer, ctx: McpContext): void {
       const webDeps: WebServerDeps = {
         db: ctx.db,
         vectors: ctx.vectors,
-        ollamaUrl: ctx.ollamaUrl,
-        ollamaModel: ctx.ollamaModel,
+        embedder: ctx.embedder,
       };
 
       if (action === 'start') {
@@ -726,7 +726,7 @@ function runFullIndex(ctx: McpContext, force: boolean) {
   const scanned = ctx.vault.scanMarkdownFiles(ctx.skipDirs);
   const existingMap = new Map(
     ctx.db.queryAll<{ path: string; modified_at: number }>('SELECT path, modified_at FROM files')
-      .map(f => [f.path, f.modified_at]),
+      .map((f: { path: string; modified_at: number }): [string, number] => [f.path, f.modified_at]),
   );
 
   const toIndex: Array<{
@@ -739,7 +739,7 @@ function runFullIndex(ctx: McpContext, force: boolean) {
 
   for (const file of scanned) {
     const existingMtime = existingMap.get(file.path);
-    if (!force && existingMtime && Math.abs(existingMtime - file.modifiedAt) < 1000) {
+    if (!force && existingMtime != null && Math.abs(existingMtime - (file as { modifiedAt: number }).modifiedAt) < 1000) {
       skipped++;
       continue;
     }
@@ -766,7 +766,7 @@ function runFullIndex(ctx: McpContext, force: boolean) {
   }
 
   const indexed = indexFiles(ctx.db, toIndex);
-  const scannedPaths = new Set(scanned.map(f => f.path));
+  const scannedPaths = new Set(scanned.map((f: { path: string }) => f.path));
   const deleted = deleteStaleFiles(ctx.db, scannedPaths);
 
   return { indexed, skipped, deleted, durationMs: Date.now() - start };

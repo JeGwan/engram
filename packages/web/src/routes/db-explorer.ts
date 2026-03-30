@@ -5,7 +5,7 @@ export function handleTables(ctx: RouteContext) {
     "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
   );
 
-  return tables.map(t => {
+  return tables.map((t: { name: string; sql: string }) => {
     const columns = ctx.db.pragma<Array<{
       cid: number; name: string; type: string; notnull: number; pk: number;
     }>>(`table_info(${t.name})`);
@@ -31,7 +31,7 @@ export function handleTableRows(ctx: RouteContext) {
   const validTables = ctx.db.queryAll<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
   );
-  const tableNames = new Set(validTables.map(t => t.name));
+  const tableNames = new Set(validTables.map((t: { name: string }) => t.name));
   if (!tableNames.has(tableName)) {
     return { error: `Table '${tableName}' not found`, columns: [] as string[], rows: [], total: 0 };
   }
@@ -55,7 +55,7 @@ export function handleTableRows(ctx: RouteContext) {
 
   const rows = ctx.db.queryAll<Record<string, unknown>>(sql);
 
-  const truncatedRows = rows.map(row => {
+  const truncatedRows = rows.map((row: Record<string, unknown>) => {
     const out: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(row)) {
       if (typeof val === 'string' && val.length > 500) {

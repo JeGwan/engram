@@ -2,7 +2,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import type { IDatabase } from '@engram/core';
+import type { IDatabase, IEmbedder } from '@engram/core';
 import { handleStats } from './routes/stats.js';
 import { handleSearch, handleSemanticSearch } from './routes/search.js';
 import { handleTables, handleTableRows } from './routes/db-explorer.js';
@@ -16,8 +16,7 @@ export interface RouteContext {
   params: Record<string, string>;
   db: IDatabase;
   vectors: import('@engram/core').VectorEntry[];
-  ollamaUrl: string;
-  ollamaModel: string;
+  embedder: IEmbedder;
 }
 
 type RouteHandler = (ctx: RouteContext) => unknown | Promise<unknown>;
@@ -107,8 +106,7 @@ function sendJson(res: http.ServerResponse, data: unknown, status = 200): void {
 export interface WebServerDeps {
   db: IDatabase;
   vectors: import('@engram/core').VectorEntry[];
-  ollamaUrl: string;
-  ollamaModel: string;
+  embedder: IEmbedder;
 }
 
 function createHttpServer(deps: WebServerDeps): http.Server {
@@ -140,8 +138,7 @@ function createHttpServer(deps: WebServerDeps): http.Server {
             params: matched.params,
             db: deps.db,
             vectors: deps.vectors,
-            ollamaUrl: deps.ollamaUrl,
-            ollamaModel: deps.ollamaModel,
+            embedder: deps.embedder,
           });
           sendJson(res, result);
         } catch (err) {
